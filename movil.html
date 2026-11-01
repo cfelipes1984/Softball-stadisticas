@@ -284,6 +284,118 @@ async function fichaModal(p){
   m.querySelector('#f_print').onclick = () => window.print();
 }
 
+/* ---------- PDF del roster (se crea en el navegador, sin librerías externas) ---------- */
+function hslToRgb01(s, fallback){
+  const m = /hsl\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)%,\s*(\d+(?:\.\d+)?)%\)/.exec(s||''); if(!m) return fallback;
+  const h = +m[1]/360, sa = +m[2]/100, l = +m[3]/100;
+  const f = (p,q,t) => { if(t<0) t+=1; if(t>1) t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3-t)*6; return p; };
+  const q = l<.5 ? l*(1+sa) : l+sa-l*sa, p = 2*l-q;
+  return [f(p,q,h+1/3), f(p,q,h), f(p,q,h-1/3)];
+}
+const WIN1252 = {'€':0x80,'…':0x85,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,'•':0x95,'–':0x96,'—':0x97};
+const pdfStr = s => '(' + [...String(s ?? '')].map(ch => {
+  let c = ch.charCodeAt(0); if(c > 255) c = WIN1252[ch] || 63;
+  const x = String.fromCharCode(c); return (x==='(' || x===')' || x==='\\') ? '\\'+x : x;
+}).join('') + ')';
+const _mc = document.createElement('canvas').getContext('2d');
+const tw = (s, size, bold) => { _mc.font = `${bold?'bold ':''}${size}px Helvetica, Arial, "Liberation Sans", sans-serif`; return _mc.measureText(s).width; };
+const fitText = (s, max, size, bold) => { s = String(s ?? ''); if(tw(s,size,bold) <= max) return s; while(s.length > 1 && tw(s+'...',size,bold) > max) s = s.slice(0,-1); return s+'...'; };
+const logoJpeg = url => new Promise(res => {
+  if(!url) return res(null);
+  const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => { try {
+    const c = document.createElement('canvas'); c.width = im.naturalWidth || 200; c.height = im.naturalHeight || 200;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(im,0,0,c.width,c.height);
+    const bin = atob(c.toDataURL('image/jpeg',0.92).split(',')[1]), bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    res({bytes, w:c.width, h:c.height});
+  } catch(e){ res(null); } };
+  im.onerror = () => res(null); im.src = url;
+});
+
+async function descargarRoster(jugadores){
+  const pal = await (TEAMP || PAL_DEFAULT);
+  const head = hslToRgb01(pal.c2, [.11,.37,.24]), dark = hslToRgb01(pal.c1, [.08,.2,.2]);
+  const logo = await logoJpeg(cfg?.logo_url);
+  const W = 612, H = 792, M = 40, HR = 26, RH = 24, LIM = H - 56;
+  const cols = [{t:'Nombre y Apellido',w:236,a:'l'},{t:'Cédula',w:110,a:'c'},{t:'Fecha de Nacimiento',w:130,a:'c'},{t:'Edad',w:56,a:'c'}];
+  const rows = [...jugadores].sort((a,b)=>a.nombre_apellido.localeCompare(b.nombre_apellido,'es'))
+    .map(p => [p.nombre_apellido, p.cedula, fmtDate(p.fecha_nacimiento), String(edad(p.fecha_nacimiento))]);
+  const gris = [.25,.25,.25], borde = [.78,.82,.78];
+  const pages = []; let ops, y;
+  const col = c => c.map(v=>v.toFixed(3)).join(' ');
+  const newPage = () => { ops = []; pages.push(ops); y = M; };
+  const rect = (x,top,w,h,c) => ops.push(`${col(c)} rg ${x} ${(H-top-h).toFixed(2)} ${w} ${h} re f`);
+  const line = (x1,t1,x2,t2,c) => ops.push(`0.5 w ${col(c)} RG ${x1} ${(H-t1).toFixed(2)} m ${x2} ${(H-t2).toFixed(2)} l S`);
+  const text = (s,x,base,size,bold,c,al) => {
+    const w = tw(s,size,bold), xx = al==='c' ? x-w/2 : al==='r' ? x-w : x;
+    ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${col(c)} rg ${xx.toFixed(2)} ${(H-base).toFixed(2)} Td ${pdfStr(s)} Tj ET`);
+  };
+  const tableW = cols.reduce((a,c)=>a+c.w,0), x0 = (W - tableW) / 2;
+  const drawHeader = () => {
+    rect(x0, y, tableW, HR, head); let x = x0;
+    cols.forEach(c => { text(c.t, x+c.w/2, y+17, 10.5, true, [1,1,1], 'c'); x += c.w; });
+    y += HR;
+  };
+
+  newPage();
+  if(logo){                                   // logo centrado en la parte superior
+    const mh = 90, mw = 220; let h = mh, w = h*logo.w/logo.h; if(w > mw){ w = mw; h = w*logo.h/logo.w; }
+    ops.push(`q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${((W-w)/2).toFixed(2)} ${(H-y-h).toFixed(2)} cm /Im1 Do Q`); y += h + 16;
+  } else { text(cfg?.nombre_equipo || '', W/2, y+20, 22, true, dark, 'c'); y += 40; }
+  text('Manager: ' + (cfg?.manager || ''), W/2, y+12, 13, false, gris, 'c'); y += 32;
+  text('ROSTER DE JUGADORES', W/2, y+18, 20, true, dark, 'c'); y += 28;
+  rect(W/2-70, y, 140, 3, head); y += 20;
+
+  drawHeader();
+  rows.forEach((r,i) => {
+    if(y + RH > LIM){ newPage(); drawHeader(); }
+    if(i % 2 === 0) rect(x0, y, tableW, RH, [.957,.969,.953]);
+    let x = x0;
+    cols.forEach((c,k) => {
+      const s = fitText(r[k], c.w - 16, 10.5, false);
+      text(s, c.a==='l' ? x+8 : x+c.w/2, y+16, 10.5, false, [.1,.1,.1], c.a==='l' ? 'l' : 'c'); x += c.w;
+    });
+    line(x0, y+RH, x0+tableW, y+RH, borde);
+    let vx = x0; for(let k=0;k<=cols.length;k++){ line(vx, y, vx, y+RH, borde); vx += cols[k]?.w || 0; }
+    y += RH;
+  });
+  if(y + 30 > LIM + 20) newPage();
+  text('Total de jugadores: ' + rows.length, x0, y+22, 11, true, dark, 'l');
+
+  const d = new Date(), fecha = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  pages.forEach((p,i) => { ops = p;
+    line(M, H-40, W-M, H-40, borde);
+    text('Generado el ' + fecha, M, H-27, 9, false, [.45,.45,.45], 'l');
+    text(`Página ${i+1} de ${pages.length}`, W-M, H-27, 9, false, [.45,.45,.45], 'r');
+  });
+
+  // ---- armado del archivo PDF
+  const N = pages.length, enc = s => { const b = new Uint8Array(s.length); for(let i=0;i<s.length;i++) b[i] = s.charCodeAt(i) & 255; return b; };
+  const chunks = [], offs = []; let pos = 0;
+  const put = d => { const b = typeof d === 'string' ? enc(d) : d; chunks.push(b); pos += b.length; };
+  const obj = (n, ...parts) => { offs[n] = pos; put(`${n} 0 obj\n`); parts.forEach(put); put('\nendobj\n'); };
+  put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Kids [${pages.map((_,i)=>`${6+2*i} 0 R`).join(' ')}] /Count ${N} >>`);
+  obj(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  obj(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  if(logo) obj(5, `<< /Type /XObject /Subtype /Image /Width ${logo.w} /Height ${logo.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logo.bytes.length} >>\nstream\n`, logo.bytes, '\nendstream');
+  else obj(5, 'null');
+  pages.forEach((p,i) => {
+    const content = p.join('\n');
+    obj(6+2*i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${logo?' /XObject << /Im1 5 0 R >>':''} >> /Contents ${7+2*i} 0 R >>`);
+    obj(7+2*i, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  const total = 5 + 2*N, xpos = pos; let xr = `xref\n0 ${total+1}\n0000000000 65535 f \n`;
+  for(let n=1;n<=total;n++) xr += String(offs[n]).padStart(10,'0') + ' 00000 n \n';
+  put(xr + `trailer\n<< /Size ${total+1} /Root 1 0 R >>\nstartxref\n${xpos}\n%%EOF`);
+
+  const nombre = 'Roster_' + (cfg?.nombre_equipo || 'Jugadores').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'') + '.pdf';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, {type:'application/pdf'})); a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
 /* ---------- Arranque ---------- */
 let sb = null, cfg = null, current = 'inicio', gameOpen = null, resultOpen = null;
 const url = SUPABASE_URL || localStorage.getItem('sb_url') || '';
@@ -423,7 +535,7 @@ async function viewJugador(){
   </div>
   <div class="photo"><div class="ph" id="ph">${e?.foto_url?`<img src="${esc(e.foto_url)}" alt="">`:'<span>Sin imagen</span>'}</div>
     <label class="btn ghost" style="margin:0">Insertar imagen<input type="file" id="j_foto" accept="image/*" hidden></label></div></form></section>
-  <section class="card"><h2>Jugadores registrados (${js.length})</h2>
+  <section class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Jugadores registrados (${js.length})</h2><button class="btn ghost" id="j_pdf" type="button">📄 Descargar PDF</button></div>
   ${js.length?`<div class="tw"><table class="tbl"><thead><tr><th>Correlativo</th><th></th><th class="l">Nombre y Apellido</th><th>Cédula</th><th>Nacimiento</th><th>Edad</th><th>Camiseta</th><th></th></tr></thead><tbody>
   ${js.map(p=>`<tr><td>${p.correlativo}</td><td>${p.foto_url?`<img class="thumb" src="${esc(p.foto_url)}" alt="">`:'<span class="thumb" style="display:inline-block"></span>'}</td>
    <td class="l">${esc(p.nombre_apellido)}</td><td>${esc(p.cedula)}</td><td>${fmtDate(p.fecha_nacimiento)}</td><td>${edad(p.fecha_nacimiento)}</td><td><b>${p.numero_camiseta}</b></td>
@@ -432,6 +544,12 @@ async function viewJugador(){
   if(!(e ? can('jugadores.editar') : can('jugadores.crear'))) $('#fj').closest('section').style.display = 'none';
   $('#j_foto').onchange = ev => { fotoFile = ev.target.files[0] || null; if(fotoFile) $('#ph').innerHTML = `<img src="${URL.createObjectURL(fotoFile)}" alt="">`; };
   app.querySelectorAll('[data-fi]').forEach(b=>b.onclick=()=>fichaModal(js.find(p=>p.correlativo==b.dataset.fi)));
+  $('#j_pdf').onclick = async () => {
+    if(!js.length) return toast('Aún no hay jugadores para el roster', true);
+    const b = $('#j_pdf'); b.disabled = true;
+    try { await descargarRoster(js); toast('PDF descargado'); } catch(er){ console.error(er); toast('No se pudo crear el PDF: ' + errMsg(er), true); }
+    b.disabled = false;
+  };
   if($('#j_cancel')) $('#j_cancel').onclick = () => { editJ=null; fotoFile=null; render(); };
   app.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{ editJ = js.find(p=>p.correlativo==b.dataset.ed); fotoFile=null; render(); window.scrollTo(0,0); });
   app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
