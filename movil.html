@@ -99,6 +99,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .f-foot{margin-top:18px;padding-top:10px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.9}
 @media(max-width:720px){.f-body{grid-template-columns:1fr}.f-photo{height:280px}}
 @media print{body>header,body>main,#toast{display:none!important}.modal-bg{position:static;background:none;padding:0;display:block}.modal{box-shadow:none;padding:0;max-width:none}.noprint{display:none!important}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+input[type=checkbox]{width:auto;margin:0;padding:0}
+.pg-r{margin-bottom:8px}.pg-r>b{display:block;font-size:13px;margin-bottom:4px}
+.pg-c{display:inline-flex;align-items:center;gap:6px;margin:0 14px 6px 0;font-weight:500;font-size:14px}
+.pf{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;padding:10px 12px;background:#fff}
+.pf summary{cursor:pointer}
+#hPerfil:empty{display:none}
+.ug{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 14px}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;z-index:9}
 #toast.on{opacity:1}#toast.err{background:var(--red)}
 @media(max-width:720px){.split{grid-template-columns:1fr}main{padding:12px}}
@@ -110,8 +117,9 @@ header{padding:10px 14px}
 .brand h1{font-size:17px;line-height:1.15}.brand small{font-size:12px}
 .logo{width:38px;height:38px}
 #hMail{display:none}
+#hPerfil{font-size:11px}
 nav{position:fixed;left:0;right:0;bottom:0;margin:0;gap:0;background:var(--ink);border-top:1px solid #2a3b66;z-index:10;padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 7px;border-radius:0;font-size:11px;color:#9fb0d0;min-width:0;white-space:nowrap}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 1px 7px;border-radius:0;font-size:10px;color:#9fb0d0;min-width:0;white-space:nowrap}
 nav button span{font-size:20px;line-height:1}
 nav button:hover{background:transparent}
 nav button.on{background:transparent;color:#fff;font-weight:700;box-shadow:inset 0 3px 0 var(--gold)}
@@ -165,7 +173,7 @@ input,select{font-size:16px;padding:11px 10px}
 <body>
 <header>
   <div class="brand"><img id="hLogo" class="logo" alt="" style="display:none"><span id="hBall" style="font-size:26px">🥎</span><div><h1 id="hTeam">Sistema de Estadísticas de Softball</h1><small id="hMgr"></small></div>
-    <div id="hUser" style="margin-left:auto;display:none;align-items:center;gap:10px;font-size:13px;color:#b8c2d6"><span id="hMail"></span><button class="btn ghost sm" id="logout">Cerrar sesión</button></div></div>
+    <div id="hUser" style="margin-left:auto;display:none;align-items:center;gap:10px;font-size:13px;color:#b8c2d6"><span id="hMail"></span><span id="hPerfil" class="chip me" style="margin:0"></span><button class="btn ghost sm" id="logout">Cerrar sesión</button></div></div>
   <nav id="nav"></nav>
 </header>
 <main id="app"></main>
@@ -183,7 +191,7 @@ const POSICIONES = ['P','C','1B','2B','3B','SS','SF','LF','CF','RF','4F','BD','B
 const STATS = [['vb','VB','Veces al bate'],['h','H','Hits'],['d2','2B','Dobles'],['d3','3B','Triples'],['hr','HR','Jonrones'],
   ['ca','CA','Carreras anotadas'],['ci','CI','Carreras impulsadas'],['bb','BB','Bases por bolas'],['k','K','Ponches'],
   ['hbp','HBP','Golpeado'],['sf','FS','Fly de sacrificio'],['br','BR','Bases robadas'],['e','E','Errores']];
-const VIEWS = [['inicio','🏠','Inicio'],['jugador','👤','Jugador'],['torneo','🏆','Torneo'],['juego','⚾','Juego'],['resultados','📊','Resultados'],['config','⚙️','Config.']];
+const VIEWS = [['inicio','Inicio','inicio.ver','🏠'],['jugador','Jugador','jugadores.ver','👤'],['torneo','Torneo','torneos.ver','🏆'],['juego','Juego','juegos.ver','⚾'],['resultados','Resultados','resultados.ver','📊'],['usuarios','Usuarios','usuarios.gestionar','👥'],['config','Config.','config.ver','⚙️']];
 
 const $ = s => document.querySelector(s);
 const app = $('#app');
@@ -228,6 +236,8 @@ function modal(html, cls=''){
   document.body.appendChild(m); return m;
 }
 let TEAMP = null;
+let ME = null;
+const can = p => !!ME && ME.permisos.has(p);
 const PAL_DEFAULT = {c1:'hsl(150,55%,16%)', c2:'hsl(150,45%,32%)', c3:'hsl(48,95%,62%)'};
 function teamPalette(url){
   if(!url) return Promise.resolve(PAL_DEFAULT);
@@ -317,10 +327,26 @@ function loginScreen(msg){
     startApp();
   };
 }
+function sinAccesoScreen(msg){
+  $('#nav').innerHTML = '';
+  app.innerHTML = `<section class="card" style="max-width:480px;margin:40px auto"><h2>Sin acceso</h2><p>${esc(msg)}</p>
+    <p class="hint">Cuenta: ${esc(ME?.email || '')}</p><button class="btn" id="sa_out">Cerrar sesión</button></section>`;
+  $('#sa_out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+}
+async function loadMe(uid){
+  const r = await q(sb.from('usuarios').select('*, perfiles(nombre,permisos)').eq('id',uid).maybeSingle());
+  ME = r ? {id:r.id, email:r.email, nombre:r.nombre, activo:r.activo, perfil:r.perfiles?.nombre||'', permisos:new Set(r.perfiles?.permisos||[])} : null;
+}
 async function startApp(){
   const {data:{session}} = await sb.auth.getSession();
   if(!session) return loginScreen();
   $('#hMail').textContent = session.user.email; $('#hUser').style.display = 'flex';
+  try { await loadMe(session.user.id); }
+  catch(e){ return setupScreen('No se pudieron leer los permisos: ' + errMsg(e) + ' — ejecuta de nuevo schema.sql en el SQL Editor de Supabase.'); }
+  if(!ME) return sinAccesoScreen('Tu usuario todavía no tiene un perfil. Pide al administrador que te asigne uno.');
+  if(!ME.activo) return sinAccesoScreen('Tu usuario está desactivado. Habla con el administrador.');
+  if(!ME.permisos.size) return sinAccesoScreen('Tu cuenta está pendiente de aprobación: aún no tiene permisos. Pide al administrador que te asigne un perfil.');
+  $('#hPerfil').textContent = ME.perfil;
   try { await loadCfg(); } catch(e){ return setupScreen('No se pudo leer la base de datos: ' + errMsg(e) + ' — verifica que ejecutaste schema.sql y que la URL y la clave son correctas.'); }
   current = 'inicio'; gameOpen = null; resultOpen = null;
   render();
@@ -344,11 +370,13 @@ async function loadCfg(){
 }
 function go(v){ current=v; gameOpen=null; resultOpen=null; render(); }
 async function render(){
-  $('#nav').innerHTML = VIEWS.map(([k,i,l])=>`<button class="${k===current?'on':''}" data-v="${k}"><span>${i}</span>${l}</button>`).join('');
+  const vv = VIEWS.filter(v => can(v[2]));
+  if(vv.length && !vv.some(v => v[0]===current)) current = vv[0][0];
+  $('#nav').innerHTML = vv.map(([k,l,p,i])=>`<button class="${k===current?'on':''}" data-v="${k}"><span>${i}</span>${l}</button>`).join('');
   $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.v));
   app.innerHTML = '<p class="empty">Cargando…</p>';
   try {
-    await ({inicio:viewInicio, jugador:viewJugador, torneo:viewTorneo, juego:viewJuego, resultados:viewResultados, config:viewConfig})[current]();
+    await ({inicio:viewInicio, jugador:viewJugador, torneo:viewTorneo, juego:viewJuego, resultados:viewResultados, usuarios:viewUsuarios, config:viewConfig})[current]();
   } catch(e){ console.error(e); app.innerHTML = `<div class="warn">Error: ${esc(errMsg(e))}</div>`; }
 }
 
@@ -399,8 +427,9 @@ async function viewJugador(){
   ${js.length?`<div class="tw"><table class="tbl"><thead><tr><th>Correlativo</th><th></th><th class="l">Nombre y Apellido</th><th>Cédula</th><th>Nacimiento</th><th>Edad</th><th>Camiseta</th><th></th></tr></thead><tbody>
   ${js.map(p=>`<tr><td>${p.correlativo}</td><td>${p.foto_url?`<img class="thumb" src="${esc(p.foto_url)}" alt="">`:'<span class="thumb" style="display:inline-block"></span>'}</td>
    <td class="l">${esc(p.nombre_apellido)}</td><td>${esc(p.cedula)}</td><td>${fmtDate(p.fecha_nacimiento)}</td><td>${edad(p.fecha_nacimiento)}</td><td><b>${p.numero_camiseta}</b></td>
-   <td><button class="btn sm" data-fi="${p.correlativo}">Ficha</button> <button class="btn ghost sm" data-ed="${p.correlativo}">Editar</button> <button class="btn danger sm" data-del="${p.correlativo}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">Aún no hay jugadores.</p>'}</section>`;
+   <td><button class="btn sm" data-fi="${p.correlativo}">Ficha</button> ${can('jugadores.editar')?`<button class="btn ghost sm" data-ed="${p.correlativo}">Editar</button>`:''} ${can('jugadores.eliminar')?`<button class="btn danger sm" data-del="${p.correlativo}">Eliminar</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">Aún no hay jugadores.</p>'}</section>`;
 
+  if(!(e ? can('jugadores.editar') : can('jugadores.crear'))) $('#fj').closest('section').style.display = 'none';
   $('#j_foto').onchange = ev => { fotoFile = ev.target.files[0] || null; if(fotoFile) $('#ph').innerHTML = `<img src="${URL.createObjectURL(fotoFile)}" alt="">`; };
   app.querySelectorAll('[data-fi]').forEach(b=>b.onclick=()=>fichaModal(js.find(p=>p.correlativo==b.dataset.fi)));
   if($('#j_cancel')) $('#j_cancel').onclick = () => { editJ=null; fotoFile=null; render(); };
@@ -454,6 +483,7 @@ async function viewTorneo(){
     <td class="l">${eqs.filter(e=>e.torneo_id===t.id).map(e=>`<span class="chip ${e.es_nuestro?'me':''}">${esc(e.nombre)}</span>`).join('')}</td>
     <td>${r.juegos}</td><td><span class="badge b-G">${r.G}</span></td><td><span class="badge b-P">${r.P}</span></td><td><span class="badge b-E">${r.E}</span></td></tr>`; }).join('')}</tbody></table></div>`
    :'<p class="empty">Aún no hay torneos registrados.</p>'}</section>`;
+  if(!can('torneos.crear')) app.querySelector('section.card').style.display = 'none';
   const chips = () => { $('#t_chips').innerHTML = (cfg?`<span class="chip me">${esc(cfg.nombre_equipo)}</span>`:'') + equiposTmp.map((n,i)=>`<span class="chip">${esc(n)} <button data-i="${i}" title="Quitar">×</button></span>`).join(''); 
     $('#t_chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{ equiposTmp.splice(+b.dataset.i,1); chips(); }); };
   chips();
@@ -504,8 +534,9 @@ async function viewJuegoLista(){
   <div style="margin-top:16px"><button class="btn" id="g_save">Registrar juego e ingresar</button></div></section>
   <section class="card"><h2>Juegos registrados (${gm.length})</h2>
   ${gm.length?`<div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th class="l">Torneo</th><th class="l">Juego</th><th>Marcador</th><th>Estado</th><th></th></tr></thead><tbody>
-  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badge(result(j))}</td><td><button class="btn sm" data-open="${j.id}">${j.estado==='finalizado'?'Ver / Editar':'Ingresar'}</button></td></tr>`; }).join('')}</tbody></table></div>`:'<p class="empty">Todavía no hay juegos registrados.</p>'}</section>`;
+  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badge(result(j))}</td><td><button class="btn sm" data-open="${j.id}">${can('juegos.anotar')?(j.estado==='finalizado'?'Ver / Editar':'Ingresar'):'Ver'}</button></td></tr>`; }).join('')}</tbody></table></div>`:'<p class="empty">Todavía no hay juegos registrados.</p>'}</section>`;
 
+  if(!can('juegos.crear')) app.querySelector('section.card').style.display = 'none';
   const fillRivals = () => { const tid=+$('#g_t').value; $('#g_r').innerHTML = eqs.filter(e=>e.torneo_id===tid).map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join('') || '<option value="">(sin equipos rivales)</option>'; };
   if(ts.length) $('#g_t').onchange = fillRivals; fillRivals();
 
@@ -637,6 +668,11 @@ function paintGame(){
   <p class="hint">«Cambio» saca a un titular y mete a un jugador de la reserva (u otro jugador registrado) en el mismo turno al bate. El jugador que sale conserva sus estadísticas.</p></section>
   <div class="row"><button class="btn" id="fin">${fin?'Reabrir juego':'Finalizar juego'}</button><button class="btn danger" id="delg">Eliminar juego</button></div>`;
 
+  if(!can('juegos.anotar')){
+    app.querySelectorAll('.st button,.inn input,[data-sub],[data-in],[data-rmres],#add_lu,#add_inn').forEach(x=>{ x.disabled = true; });
+    $('#fin').style.display = 'none';
+  }
+  if(!can('juegos.eliminar')) $('#delg').style.display = 'none';
   $('#back').onclick = () => { gameOpen=null; render(); };
   $('#add_inn').onclick = async () => { try { await q(sb.from('juego_entradas').insert({juego_id:j.id,entrada:ent.length+1})); await refreshGame(); } catch(er){ toast(errMsg(er),true); } };
   app.querySelectorAll('.inn input').forEach(i=>i.onchange = async () => {
@@ -654,6 +690,7 @@ function paintGame(){
   $('#delg').onclick = async () => { if(!confirm('¿Eliminar este juego y todas sus estadísticas?')) return; try { await q(sb.from('juegos').delete().eq('id',j.id)); gameOpen=null; toast('Juego eliminado'); render(); } catch(er){ toast(errMsg(er),true); } };
 }
 async function bump(sid, f, d){
+  if(!can('juegos.anotar')) return;
   const s = G.st.find(x=>x.id===sid);
   if(d<0 && s[f]===0) return;
   const ch = {}, put = (k,dd) => { ch[k] = Math.max(0, (ch[k] ?? s[k]) + dd); };
@@ -762,9 +799,102 @@ async function viewResultadoDetalle(){
   ${jugando.map(l=>{ const s=st.find(x=>x.jugador_id===l.jugador_id); return `<tr${l.rol==='salio'?' style="opacity:.6"':''}><td>${ordLabel(l)}</td><td>${l.jugadores.numero_camiseta}</td><td class="l">${esc(l.jugadores.nombre_apellido)}</td><td>${esc(l.posicion||'')}</td>${statCells(s)}</tr>`; }).join('')}
   <tr class="tot"><td colspan="4" class="l">EQUIPO</td>${statCells(tot)}</tr></tbody></table></div>
   <p class="hint">↩ = jugador que salió por un cambio. Jugador más valioso = bases totales + CA + CI + ½ (BB + HBP + BR) − ½ E − ¼ K.</p></section>
-  <button class="btn" id="edit">Ingresar / corregir datos del juego</button>`;
+  ${can('juegos.anotar')?'<button class="btn" id="edit">Ingresar / corregir datos del juego</button>':''}`;
   $('#back').onclick = () => { resultOpen=null; render(); };
-  $('#edit').onclick = () => { gameOpen=resultOpen; resultOpen=null; current='juego'; render(); };
+  if($('#edit')) $('#edit').onclick = () => { gameOpen=resultOpen; resultOpen=null; current='juego'; render(); };
+}
+
+/* ---------- USUARIOS Y PERFILES ---------- */
+const PERMS = [
+  ['inicio','Inicio',[['ver','Ver']]],
+  ['jugadores','Jugadores',[['ver','Ver'],['crear','Registrar'],['editar','Editar'],['eliminar','Eliminar']]],
+  ['torneos','Torneos',[['ver','Ver'],['crear','Registrar']]],
+  ['juegos','Juegos',[['ver','Ver'],['crear','Registrar juego'],['anotar','Anotar estadísticas y cambios'],['eliminar','Eliminar']]],
+  ['resultados','Resultados',[['ver','Ver']]],
+  ['config','Configuración',[['ver','Ver'],['editar','Modificar']]],
+  ['usuarios','Usuarios y perfiles',[['gestionar','Administrar']]]
+];
+const permGrid = (sel, dis) => `<div class="pg">${PERMS.map(([m,l,acts])=>`<div class="pg-r"><b>${l}</b><div>${acts.map(([a,al])=>`<label class="pg-c"><input type="checkbox" data-p="${m}.${a}" ${sel.has(m+'.'+a)?'checked':''} ${dis?'disabled':''}> ${al}</label>`).join('')}</div></div>`).join('')}</div>`;
+// Quien recibe una acción de un módulo también necesita poder ver ese módulo
+function readPerms(root){
+  const s = new Set([...root.querySelectorAll('[data-p]:checked')].map(c=>c.dataset.p));
+  s.forEach(p => { const m = p.split('.')[0]; if(m!=='usuarios' && PERMS.find(x=>x[0]===m)[2].some(a=>a[0]==='ver')) s.add(m+'.ver'); });
+  return [...s];
+}
+async function viewUsuarios(){
+  const [us, pfs] = await Promise.all([
+    q(sb.from('usuarios').select('*').order('created_at')),
+    q(sb.from('perfiles').select('*').order('id'))
+  ]);
+  const cnt = id => us.filter(u=>u.perfil_id===id).length;
+  const perfOpts = sel => pfs.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.nombre)}</option>`).join('');
+  const defPerf = (pfs.find(p=>p.nombre==='Consulta')||pfs[0]).id;
+  app.innerHTML = `<section class="card"><h2>Crear usuario</h2>
+  <form id="fu"><div class="ug">
+    <label>Correo electrónico<input id="u_mail" type="email" required></label>
+    <label>Contraseña (mínimo 6)<input id="u_pass" type="password" minlength="6" required autocomplete="new-password"></label>
+    <label>Nombre<input id="u_nom"></label>
+    <label>Perfil<select id="u_perf">${perfOpts(defPerf)}</select></label></div>
+  <button class="btn">Crear usuario</button>
+  <p class="hint">Si en Supabase está activada la confirmación por correo, el usuario debe confirmar su correo antes de entrar. También puedes crearlos en Supabase (Authentication → Users): aparecen aquí solos con el perfil «Sin acceso» hasta que les asignes uno.</p></form></section>
+
+  <section class="card"><h2>Usuarios (${us.length})</h2>
+  <div class="tw"><table class="tbl"><thead><tr><th class="l">Correo</th><th class="l">Nombre</th><th class="l">Perfil</th><th>Activo</th><th></th></tr></thead><tbody>
+  ${us.map(u=>`<tr data-u="${u.id}"><td class="l">${esc(u.email)}${u.id===ME.id?' <span class="badge b-x">tú</span>':''}</td>
+    <td class="l"><input data-f="nombre" value="${esc(u.nombre)}" style="margin:0;min-width:130px"></td>
+    <td class="l"><select data-f="perfil" style="margin:0;min-width:150px">${perfOpts(u.perfil_id)}</select></td>
+    <td><input type="checkbox" data-f="activo" ${u.activo?'checked':''}></td>
+    <td><button class="btn sm" data-save="${u.id}">Guardar</button></td></tr>`).join('')}</tbody></table></div></section>
+
+  <section class="card"><h2>Perfiles y permisos</h2>
+  <p class="hint" style="margin-top:-6px">Un perfil agrupa permisos. Cada usuario tiene un perfil. Los cambios se aplican la próxima vez que el usuario abra la app.</p>
+  ${pfs.map(p=>{ const fijo = p.nombre==='Administrador' || p.nombre==='Sin acceso';
+    return `<details class="pf" data-pid="${p.id}"><summary><b>${esc(p.nombre)}</b> <span class="hint">· ${cnt(p.id)} usuario(s)${p.es_sistema?' · del sistema':''}</span></summary>
+    <p class="hint">${esc(p.descripcion||'')}</p>${permGrid(new Set(p.permisos), fijo)}
+    ${fijo?'<p class="hint">Este perfil no se puede modificar.</p>':`<div class="row"><button class="btn sm" data-psave="${p.id}">Guardar permisos</button>${p.es_sistema?'':`<button class="btn danger sm" data-pdel="${p.id}">Eliminar perfil</button>`}</div>`}</details>`; }).join('')}
+  <details class="pf" id="pf_new"><summary><b>+ Nuevo perfil</b></summary>
+    <label style="margin-top:10px">Nombre del perfil<input id="pn_nom"></label><label>Descripción<input id="pn_desc"></label>
+    ${permGrid(new Set(['inicio.ver']), false)}<button class="btn sm" id="pn_ok">Crear perfil</button></details></section>`;
+
+  $('#fu').onsubmit = async e => {
+    e.preventDefault();
+    const email = $('#u_mail').value.trim(), password = $('#u_pass').value, btn = e.target.querySelector('button');
+    btn.disabled = true;
+    try {
+      // cliente auxiliar sin sesión guardada: crear al usuario no cierra tu propia sesión
+      const aux = supabase.createClient(url, key, {auth:{persistSession:false, autoRefreshToken:false, detectSessionInUrl:false, storageKey:'sb-aux-'+Date.now()}});
+      const {data, error} = await aux.auth.signUp({email, password});
+      if(error) throw error;
+      if(!data.user || (data.user.identities && data.user.identities.length===0)) throw new Error('Ese correo ya está registrado');
+      await q(sb.from('usuarios').update({nombre:$('#u_nom').value.trim() || email.split('@')[0], perfil_id:+$('#u_perf').value}).eq('id',data.user.id));
+      toast(data.session ? 'Usuario creado' : 'Usuario creado. Debe confirmar su correo antes de entrar');
+      render();
+    } catch(er){ btn.disabled = false; toast(errMsg(er), true); }
+  };
+  app.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{
+    const row = b.closest('tr'), id = b.dataset.save;
+    try {
+      await q(sb.from('usuarios').update({nombre:row.querySelector('[data-f=nombre]').value.trim(), perfil_id:+row.querySelector('[data-f=perfil]').value, activo:row.querySelector('[data-f=activo]').checked}).eq('id',id));
+      toast('Usuario actualizado');
+      if(id===ME.id) location.reload(); else render();
+    } catch(er){ toast(errMsg(er), true); render(); }
+  });
+  app.querySelectorAll('[data-psave]').forEach(b=>b.onclick=async()=>{
+    try { await q(sb.from('perfiles').update({permisos:readPerms(b.closest('details'))}).eq('id',+b.dataset.psave)); toast('Permisos guardados'); render(); }
+    catch(er){ toast(errMsg(er), true); }
+  });
+  app.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=async()=>{
+    const id = +b.dataset.pdel;
+    if(cnt(id)) return toast('Primero cambia el perfil de sus usuarios', true);
+    if(!confirm('¿Eliminar este perfil?')) return;
+    try { await q(sb.from('perfiles').delete().eq('id',id)); toast('Perfil eliminado'); render(); } catch(er){ toast(errMsg(er), true); }
+  });
+  $('#pn_ok').onclick = async () => {
+    const nombre = $('#pn_nom').value.trim();
+    if(!nombre) return toast('Escribe el nombre del perfil', true);
+    try { await q(sb.from('perfiles').insert({nombre, descripcion:$('#pn_desc').value.trim()||null, permisos:readPerms($('#pf_new'))})); toast('Perfil creado'); render(); }
+    catch(er){ toast(errMsg(er), true); }
+  };
 }
 
 /* ---------- CONFIGURACION (último módulo) ---------- */
@@ -780,6 +910,7 @@ async function viewConfig(){
     <p class="hint" style="text-align:center;margin:0">Se mostrará en los juegos y en las estadísticas.</p></div></form></section>
   <section class="card" style="max-width:620px"><h3 style="margin-top:0">Conexión</h3><p class="hint"><a href="index.html?desktop">Abrir la versión de escritorio</a></p><p class="hint" style="margin-top:0">Conectado a: ${esc(url)}</p>
   ${localStorage.getItem('sb_url')?'<button class="btn ghost sm" id="reset">Cambiar conexión</button>':''}</section>`;
+  if(!can('config.editar')){ app.querySelectorAll('#fcfg input').forEach(x=>x.disabled=true); app.querySelectorAll('#fcfg button, #fcfg label.btn').forEach(x=>x.style.display='none'); }
   $('#fcfg').onsubmit = async e => { e.preventDefault();
     try {
       let logo_url = cfg?.logo_url || null;
