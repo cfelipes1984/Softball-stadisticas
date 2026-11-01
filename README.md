@@ -16,7 +16,7 @@ Incluye inicio de sesión con Supabase Auth.
 1. En Supabase abre **SQL Editor**, pega todo `schema.sql` y ejecútalo (se puede volver a ejecutar sin perder datos).
 2. En **Authentication → Users → Add user** crea tu usuario (marca *Auto Confirm User*).
 3. Abre `index.html` en el navegador o publícalo en un hosting estático (por ejemplo GitHub Pages).
-4. La primera vez te pide la **Project URL** y la clave pública (*anon / publishable*) de *Project Settings → API*. No se guardan en el repositorio.
+4. La app ya viene conectada al proyecto de Supabase (URL y clave pública *publishable* al inicio del script en `index.html`). Para usar otro proyecto, cambia `SUPABASE_URL` y `SUPABASE_KEY`. Nunca pongas aquí la clave `service_role`.
 
 ## Jugador más valioso
 Bases totales + carreras anotadas + carreras impulsadas + ½ (BB + HBP + BR) − ½ errores − ¼ ponches.
