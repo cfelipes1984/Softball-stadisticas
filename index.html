@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>/* En celulares abre la versión móvil (agrega ?desktop a la dirección para forzar esta versión) */
+try { if(matchMedia('(max-width:720px)').matches && !/[?&]desktop/.test(location.search)) location.replace('movil.html'+location.search+location.hash); } catch(e){}</script>
 <title>Sistema de Estadísticas de Softball</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>

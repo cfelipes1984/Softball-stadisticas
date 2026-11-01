@@ -2,6 +2,12 @@
 
 Aplicación web (un solo archivo HTML) con base de datos en **Supabase** para llevar las estadísticas de un equipo de softball.
 
+## Versión móvil
+- `movil.html` es la versión para celulares: barra de pestañas abajo, botones grandes y una ficha por jugador para anotar el juego con el pulgar.
+- Si abres `index.html` desde un celular, te lleva sola a la versión móvil. Para ver la de escritorio agrega `?desktop` a la dirección.
+- Es instalable como app: en Android, menú del navegador → *Instalar aplicación*; en iPhone, Compartir → *Añadir a pantalla de inicio*.
+- Con **GitHub Pages** activado (*Settings → Pages → rama `main`, carpeta raíz*) se abre desde cualquier celular con el enlace que te da GitHub.
+
 ## Módulos
 - **Inicio**: estadísticas acumuladas de todos los jugadores y del equipo, y récord de ganados/perdidos.
 - **Registrar Jugador**: datos, número de camiseta único, foto y ficha técnica con los colores del logo del equipo.
