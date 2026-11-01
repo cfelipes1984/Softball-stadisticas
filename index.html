@@ -466,23 +466,26 @@ async function viewJugador(){
     <label>Cédula<input id="j_cedula" required value="${esc(e?.cedula)}"></label>
     <label>Fecha de Nacimiento<input id="j_fnac" type="date" required value="${esc(e?.fecha_nacimiento)}"></label>
     <label>Número de Camiseta<input id="j_num" type="number" min="0" max="999" required value="${esc(e?.numero_camiseta)}"></label>
+    <label>Status<select id="j_status"><option value="1" ${!e||e.activo!==false?'selected':''}>Activo</option><option value="0" ${e&&e.activo===false?'selected':''}>Inactivo</option></select></label>
     <div class="row"><button class="btn">${e?'Guardar cambios':'Registrar'}</button>${e?'<button type="button" class="btn ghost" id="j_cancel">Cancelar</button>':''}</div>
   </div>
   <div class="photo"><div class="ph" id="ph">${e?.foto_url?`<img src="${esc(e.foto_url)}" alt="">`:'<span>Sin imagen</span>'}</div>
     <label class="btn ghost" style="margin:0">Insertar imagen<input type="file" id="j_foto" accept="image/*" hidden></label></div></form></section>
   <section class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Jugadores registrados (${js.length})</h2><button class="btn ghost" id="j_pdf" type="button">📄 Descargar PDF</button></div>
-  ${js.length?`<div class="tw"><table class="tbl"><thead><tr><th>Correlativo</th><th></th><th class="l">Nombre y Apellido</th><th>Cédula</th><th>Nacimiento</th><th>Edad</th><th>Camiseta</th><th></th></tr></thead><tbody>
+  <p class="hint" style="margin:-4px 0 10px">El PDF incluye solo los jugadores <b>activos</b> (${js.filter(p=>p.activo!==false).length} de ${js.length}).</p>
+  ${js.length?`<div class="tw"><table class="tbl"><thead><tr><th>Correlativo</th><th></th><th class="l">Nombre y Apellido</th><th>Cédula</th><th>Nacimiento</th><th>Edad</th><th>Camiseta</th><th>Status</th><th></th></tr></thead><tbody>
   ${js.map(p=>`<tr><td>${p.correlativo}</td><td>${p.foto_url?`<img class="thumb" src="${esc(p.foto_url)}" alt="">`:'<span class="thumb" style="display:inline-block"></span>'}</td>
-   <td class="l">${esc(p.nombre_apellido)}</td><td>${esc(p.cedula)}</td><td>${fmtDate(p.fecha_nacimiento)}</td><td>${edad(p.fecha_nacimiento)}</td><td><b>${p.numero_camiseta}</b></td>
+   <td class="l">${esc(p.nombre_apellido)}</td><td>${esc(p.cedula)}</td><td>${fmtDate(p.fecha_nacimiento)}</td><td>${edad(p.fecha_nacimiento)}</td><td><b>${p.numero_camiseta}</b></td><td>${p.activo===false?'<span class="badge b-x">Inactivo</span>':'<span class="badge b-G">Activo</span>'}</td>
    <td><button class="btn sm" data-fi="${p.correlativo}">Ficha</button> ${can('jugadores.editar')?`<button class="btn ghost sm" data-ed="${p.correlativo}">Editar</button>`:''} ${can('jugadores.eliminar')?`<button class="btn danger sm" data-del="${p.correlativo}">Eliminar</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">Aún no hay jugadores.</p>'}</section>`;
 
   if(!(e ? can('jugadores.editar') : can('jugadores.crear'))) $('#fj').closest('section').style.display = 'none';
   $('#j_foto').onchange = ev => { fotoFile = ev.target.files[0] || null; if(fotoFile) $('#ph').innerHTML = `<img src="${URL.createObjectURL(fotoFile)}" alt="">`; };
   app.querySelectorAll('[data-fi]').forEach(b=>b.onclick=()=>fichaModal(js.find(p=>p.correlativo==b.dataset.fi)));
   $('#j_pdf').onclick = async () => {
-    if(!js.length) return toast('Aún no hay jugadores para el roster', true);
+    const activos = js.filter(p => p.activo !== false);
+    if(!activos.length) return toast('No hay jugadores activos para el roster', true);
     const b = $('#j_pdf'); b.disabled = true;
-    try { await descargarRoster(js); toast('PDF descargado'); } catch(er){ console.error(er); toast('No se pudo crear el PDF: ' + errMsg(er), true); }
+    try { await descargarRoster(activos); toast('PDF descargado'); } catch(er){ console.error(er); toast('No se pudo crear el PDF: ' + errMsg(er), true); }
     b.disabled = false;
   };
   if($('#j_cancel')) $('#j_cancel').onclick = () => { editJ=null; fotoFile=null; render(); };
@@ -507,7 +510,7 @@ async function viewJugador(){
         if(up.error) throw up.error;
         foto = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
       }
-      const rec = {nombre_apellido:$('#j_nombre').value.trim(), cedula:$('#j_cedula').value.trim(), fecha_nacimiento:$('#j_fnac').value, numero_camiseta:num, foto_url:foto};
+      const rec = {nombre_apellido:$('#j_nombre').value.trim(), cedula:$('#j_cedula').value.trim(), fecha_nacimiento:$('#j_fnac').value, numero_camiseta:num, foto_url:foto, activo:$('#j_status').value==='1'};
       if(editJ) await q(sb.from('jugadores').update(rec).eq('correlativo',editJ.correlativo));
       else await q(sb.from('jugadores').insert(rec));
       toast(editJ?'Jugador actualizado':'Jugador registrado'); editJ=null; fotoFile=null; render();

@@ -27,8 +27,11 @@ create table if not exists public.jugadores (
   fecha_nacimiento date    not null,
   numero_camiseta  integer not null unique check (numero_camiseta between 0 and 999),
   foto_url         text,
+  activo           boolean not null default true,   -- Status: true = Activo, false = Inactivo
   created_at       timestamptz not null default now()
 );
+-- Si ya habias ejecutado una version anterior del script, esto agrega el Status:
+alter table public.jugadores add column if not exists activo boolean not null default true;
 
 -- ---------------------------------------------------------------------
 -- 3. TORNEOS Y EQUIPOS PARTICIPANTES
