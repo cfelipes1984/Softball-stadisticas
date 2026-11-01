@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistema de Estadísticas de Softball</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--green:#1b5e3b;--green2:#2e7d4f;--ink:#14213d;--bg:#f2f5f1;--card:#fff;--line:#dde3da;--mut:#667085;--red:#b3261e;--gold:#e0a82e}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+header{background:var(--ink);color:#fff;padding:14px 20px 0}
+.brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand h1{margin:0;font-size:20px}
+.brand small{color:#b8c2d6}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-top:12px}
+nav button{background:transparent;color:#cdd5e5;border:0;padding:10px 16px;font-size:14px;cursor:pointer;border-radius:8px 8px 0 0}
+nav button:hover{background:#22325a}
+nav button.on{background:var(--bg);color:var(--ink);font-weight:600}
+main{max-width:1200px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+h2{margin:0 0 14px;font-size:18px}
+h3{margin:18px 0 8px;font-size:15px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:#344054}
+input,select{width:100%;margin-top:5px;padding:9px 10px;border:1px solid #c8d0c5;border-radius:8px;font-size:15px;background:#fff;font-family:inherit}
+input:focus,select:focus{outline:2px solid var(--green2);border-color:var(--green2)}
+.btn{background:var(--green);color:#fff;border:0;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;display:inline-block}
+.btn:hover{background:var(--green2)}
+.btn.ghost{background:#fff;color:var(--green);border:1px solid var(--green)}
+.btn.ghost:hover{background:#eaf4ee}
+.btn.danger{background:#fff;color:var(--red);border:1px solid var(--red)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.split{display:grid;grid-template-columns:1fr 260px;gap:24px}
+.photo{display:flex;flex-direction:column;align-items:center;gap:10px}
+.ph{width:200px;height:240px;border:2px dashed #b9c4b6;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--mut);overflow:hidden;background:#f8faf7}
+.ph img{width:100%;height:100%;object-fit:cover}
+.tw{overflow-x:auto}
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{padding:8px 9px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+.tbl th{background:#f4f7f3;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:#475467}
+.tbl td.l,.tbl th.l{text-align:left}
+.tbl tr.tot td{font-weight:700;background:#f4f7f3}
+.thumb{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#e6ebe4;vertical-align:middle}
+.logo{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#fff;vertical-align:middle;border:1px solid var(--line)}
+.logo.sm{width:26px;height:26px}.logo.lg{width:84px;height:84px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#eaf4ee;color:var(--green);border-radius:999px;padding:4px 10px;font-size:13px;margin:3px 4px 3px 0}
+.chip.me{background:var(--green);color:#fff}
+.chip button{border:0;background:transparent;cursor:pointer;color:inherit;font-size:15px;padding:0}
+.badge{display:inline-block;border-radius:6px;padding:2px 9px;font-weight:700;font-size:12px}
+.b-G{background:#d7f0e0;color:#17623a}.b-P{background:#f9dcda;color:var(--red)}.b-E{background:#fdf0c9;color:#8a6200}.b-x{background:#e8ebf0;color:#475467}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi b{display:block;font-size:26px}.kpi span{color:var(--mut);font-size:13px}
+.score{display:flex;align-items:center;justify-content:center;gap:28px;font-size:34px;font-weight:800;margin:8px 0 16px;flex-wrap:wrap}
+.score small{display:block;font-size:13px;font-weight:600;color:var(--mut)}
+.st{display:inline-flex;align-items:center;gap:3px}
+.st button{width:24px;height:24px;border:1px solid #c8d0c5;background:#fff;border-radius:6px;cursor:pointer;font-weight:700;line-height:1}
+.st button:hover{background:#eaf4ee}
+.st span{min-width:20px;text-align:center;font-weight:700}
+.inn input{width:52px;text-align:center;padding:5px;margin:0}
+.hint{color:var(--mut);font-size:13px;margin:6px 0 0}
+.empty{color:var(--mut);padding:14px 0}
+.warn{background:#fff6dd;border:1px solid #f0d58a;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:14px}
+.thumb.big{width:56px;height:56px}
+.mvp{display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,#fff7dc,#fff);border:1px solid #f0d58a;border-radius:12px;padding:12px 16px;margin-bottom:18px}
+.mvp>div{display:flex;flex-direction:column;gap:2px}.mvp b{font-size:18px}.mvp small{color:var(--mut)}
+.modal-bg{position:fixed;inset:0;background:rgba(10,18,40,.6);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;z-index:20}
+.modal{background:#fff;border-radius:14px;padding:20px;width:100%;max-width:520px;margin:auto}
+.modal.wide{max-width:800px}
+.ficha{position:relative;overflow:hidden;border-radius:16px;color:#fff;background:linear-gradient(135deg,var(--c1),var(--c2));padding:22px}
+.ficha::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(120deg,rgba(255,255,255,.06) 0 14px,transparent 14px 34px);pointer-events:none}
+.ficha>*{position:relative}
+.ficha .f-wm{position:absolute;right:-60px;bottom:-60px;width:340px;height:340px;opacity:.12;object-fit:cover;border-radius:50%}
+.f-top{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--c3);padding-bottom:14px;margin-bottom:18px}
+.f-top small{letter-spacing:.25em;font-size:12px;color:var(--c3);font-weight:700}
+.f-top h2{margin:2px 0 0;font-size:24px;color:#fff;text-transform:uppercase}
+.f-id{margin-left:auto;background:var(--c3);color:var(--c1);font-weight:800;border-radius:8px;padding:6px 12px;white-space:nowrap}
+.f-body{display:grid;grid-template-columns:240px 1fr;gap:22px}
+.f-photo{position:relative;height:300px;border-radius:14px;border:4px solid var(--c3);overflow:hidden;background:rgba(255,255,255,.12);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.f-photo img{width:100%;height:100%;object-fit:cover}
+.f-nophoto{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:40px;line-height:1.5}
+.f-num{position:absolute;left:0;bottom:0;background:var(--c3);color:var(--c1);font-size:34px;font-weight:900;padding:2px 16px;border-top-right-radius:14px}
+.f-data h3{margin:0 0 12px;font-size:28px;line-height:1.1;text-transform:uppercase}
+.f-data dl{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:0 0 16px}
+.f-data dt{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--c3);font-weight:700}
+.f-data dd{margin:2px 0 0;font-size:17px;font-weight:600}
+.f-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:8px}
+.f-stats div{background:rgba(255,255,255,.14);border-radius:10px;padding:8px;text-align:center}
+.f-stats b{display:block;font-size:20px}.f-stats span{font-size:11px;letter-spacing:.08em;color:var(--c3)}
+.f-foot{margin-top:18px;padding-top:10px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.9}
+@media(max-width:720px){.f-body{grid-template-columns:1fr}.f-photo{height:280px}}
+@media print{body>header,body>main,#toast{display:none!important}.modal-bg{position:static;background:none;padding:0;display:block}.modal{box-shadow:none;padding:0;max-width:none}.noprint{display:none!important}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;z-index:9}
+#toast.on{opacity:1}#toast.err{background:var(--red)}
+@media(max-width:720px){.split{grid-template-columns:1fr}main{padding:12px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><img id="hLogo" class="logo" alt="" style="display:none"><span id="hBall" style="font-size:26px">🥎</span><div><h1 id="hTeam">Sistema de Estadísticas de Softball</h1><small id="hMgr"></small></div>
+    <div id="hUser" style="margin-left:auto;display:none;align-items:center;gap:10px;font-size:13px;color:#b8c2d6"><span id="hMail"></span><button class="btn ghost sm" id="logout">Cerrar sesión</button></div></div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"></main>
+<div id="toast"></div>
+
+<script>
+/* ---------- CONEXION A SUPABASE ----------
+   Opción A: pega aquí tu URL y tu clave (Project Settings > API).
+   Opción B: déjalos vacíos y la app te los pedirá la primera vez. */
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
+
+const BUCKET = 'fotos-jugadores';
+const POSICIONES = ['P','C','1B','2B','3B','SS','SF','LF','CF','RF','4F','BD','BA','RS'];
+const STATS = [['vb','VB','Veces al bate'],['h','H','Hits'],['d2','2B','Dobles'],['d3','3B','Triples'],['hr','HR','Jonrones'],
+  ['ca','CA','Carreras anotadas'],['ci','CI','Carreras impulsadas'],['bb','BB','Bases por bolas'],['k','K','Ponches'],
+  ['hbp','HBP','Golpeado'],['sf','FS','Fly de sacrificio'],['br','BR','Bases robadas'],['e','E','Errores']];
+const VIEWS = [['inicio','Inicio'],['jugador','Registrar Jugador'],['torneo','Registrar Torneo'],['juego','Juego'],['resultados','Resultados'],['config','Configuración']];
+
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = d => d ? d.split('-').reverse().join('/') : '';
+const edad = d => { if(!d) return ''; const n=new Date(), b=new Date(d+'T00:00:00'); let a=n.getFullYear()-b.getFullYear(); if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate())) a--; return a; };
+const logo = (cls='') => cfg?.logo_url ? `<img class="logo ${cls}" src="${esc(cfg.logo_url)}" alt="">` : '';
+const q = async p => { const {data,error} = await p; if(error) throw error; return data; };
+let tt; function toast(m,err){ const t=$('#toast'); t.textContent=m; t.className='on'+(err?' err':''); clearTimeout(tt); tt=setTimeout(()=>t.className='',3200); }
+const errMsg = e => e?.code==='23505' ? 'Ya existe un registro con esos datos (valor repetido).' : e?.code==='23503' ? 'No se puede eliminar: tiene datos relacionados (por ejemplo, juegos).' : (e?.message || String(e));
+
+/* ---------- Cálculos de béisbol/softball ---------- */
+const zero = () => Object.fromEntries(STATS.map(s=>[s[0],0]));
+const sumStats = arr => arr.reduce((a,s)=>{ STATS.forEach(([k])=>a[k]+= (s[k]||0)); return a; }, zero());
+const r3 = x => { const v=(isFinite(x)?x:0).toFixed(3); return v.startsWith('0')?v.slice(1):v; };
+function calc(s){
+  const tb = s.h + s.d2 + 2*s.d3 + 3*s.hr, pa = s.vb + s.bb + s.hbp + s.sf;
+  const avg = s.vb ? s.h/s.vb : 0, obp = pa ? (s.h+s.bb+s.hbp)/pa : 0, slg = s.vb ? tb/s.vb : 0;
+  return {avg, obp, slg, ops: obp+slg};
+}
+const runs = j => ({n:(j.juego_entradas||[]).reduce((a,e)=>a+e.carreras_nuestras,0), r:(j.juego_entradas||[]).reduce((a,e)=>a+e.carreras_rival,0)});
+const result = j => { if(j.estado!=='finalizado') return null; const {n,r}=runs(j); return n>r?'G':n<r?'P':'E'; };
+const badge = r => r ? `<span class="badge b-${r}">${{G:'Ganado',P:'Perdido',E:'Empate'}[r]}</span>` : `<span class="badge b-x">En juego</span>`;
+function record(games){
+  const o={juegos:0,G:0,P:0,E:0,rf:0,rc:0};
+  games.filter(j=>j.estado==='finalizado').forEach(j=>{ const r=result(j), c=runs(j); o.juegos++; o[r]++; o.rf+=c.n; o.rc+=c.r; });
+  return o;
+}
+function statHeader(first, withJJ){
+  return `<tr>${first}${withJJ?'<th title="Juegos jugados">JJ</th>':''}${STATS.map(s=>`<th title="${s[2]}">${s[1]}</th>`).join('')}<th>AVG</th><th>OBP</th><th>SLG</th><th>OPS</th></tr>`;
+}
+function statCells(s, jj){
+  const c = calc(s);
+  return `${jj!==undefined?`<td>${jj}</td>`:''}${STATS.map(([k])=>`<td>${s[k]}</td>`).join('')}<td><b>${r3(c.avg)}</b></td><td>${r3(c.obp)}</td><td>${r3(c.slg)}</td><td>${r3(c.ops)}</td>`;
+}
+
+/* ---------- Ventanas, paleta del logo y ficha técnica ---------- */
+function modal(html, cls=''){
+  const m = document.createElement('div'); m.className = 'modal-bg';
+  m.innerHTML = `<div class="modal ${cls}">${html}</div>`;
+  m.addEventListener('mousedown', e => { if(e.target===m) m.remove(); });
+  document.body.appendChild(m); return m;
+}
+let TEAMP = null;
+const PAL_DEFAULT = {c1:'hsl(150,55%,16%)', c2:'hsl(150,45%,32%)', c3:'hsl(48,95%,62%)'};
+function teamPalette(url){
+  if(!url) return Promise.resolve(PAL_DEFAULT);
+  return new Promise(res => {
+    const done = v => res(v || PAL_DEFAULT), t = setTimeout(() => done(null), 3000);
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { clearTimeout(t); try {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 48;
+      const cx = cv.getContext('2d'); cx.drawImage(img,0,0,48,48);
+      const d = cx.getImageData(0,0,48,48).data, bins = {};
+      for(let i=0;i<d.length;i+=4){
+        if(d[i+3] < 200) continue;
+        const r=d[i]/255, g=d[i+1]/255, b=d[i+2]/255, mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2, df=mx-mn;
+        if(df < 0.15 || l < 0.15 || l > 0.88) continue;           // ignora blancos, negros y grises
+        const s = df / (1 - Math.abs(2*l-1));
+        let h = mx===r ? ((g-b)/df)%6 : mx===g ? (b-r)/df+2 : (r-g)/df+4; h = (h*60+360)%360;
+        const k = Math.round(h/20)%18, o = bins[k] || (bins[k]={n:0,h:0,s:0}); o.n++; o.h+=h; o.s+=s;
+      }
+      const top = Object.values(bins).sort((a,b)=>b.n-a.n)[0];
+      if(!top) return done(null);
+      const h = Math.round(top.h/top.n), s = Math.min(85, Math.max(45, Math.round(top.s/top.n*100)));
+      done({c1:`hsl(${h},${s}%,18%)`, c2:`hsl(${h},${s}%,38%)`, c3:`hsl(${(h+25)%360},95%,68%)`});
+    } catch(e){ done(null); } };
+    img.onerror = () => { clearTimeout(t); done(null); };
+    img.src = url;
+  });
+}
+async function fichaModal(p){
+  let st = []; try { st = await q(sb.from('juego_stats').select('*').eq('jugador_id',p.correlativo)); } catch(e){}
+  const t = sumStats(st), k = calc(t), pal = await (TEAMP || PAL_DEFAULT);
+  const m = modal(`<div class="ficha" style="--c1:${pal.c1};--c2:${pal.c2};--c3:${pal.c3}">
+    ${cfg?.logo_url?`<img class="f-wm" src="${esc(cfg.logo_url)}" alt="">`:''}
+    <div class="f-top">${logo('lg')}<div><small>FICHA TÉCNICA</small><h2>${esc(cfg?.nombre_equipo||'Equipo')}</h2></div><div class="f-id">N.º ${p.correlativo}</div></div>
+    <div class="f-body">
+      <div class="f-photo">${p.foto_url?`<img src="${esc(p.foto_url)}" alt="">`:'<div class="f-nophoto">🥎<br>Sin foto</div>'}<div class="f-num">${p.numero_camiseta}</div></div>
+      <div class="f-data"><h3>${esc(p.nombre_apellido)}</h3>
+        <dl><div><dt>Cédula</dt><dd>${esc(p.cedula)}</dd></div><div><dt>Camiseta</dt><dd>${p.numero_camiseta}</dd></div>
+        <div><dt>Fecha de nacimiento</dt><dd>${fmtDate(p.fecha_nacimiento)}</dd></div><div><dt>Edad</dt><dd>${edad(p.fecha_nacimiento)} años</dd></div></dl>
+        <div class="f-stats"><div><b>${st.length}</b><span>JJ</span></div><div><b>${r3(k.avg)}</b><span>AVG</span></div><div><b>${t.h}</b><span>H</span></div><div><b>${t.hr}</b><span>HR</span></div><div><b>${t.ci}</b><span>CI</span></div><div><b>${t.ca}</b><span>CA</span></div></div>
+      </div></div>
+    <div class="f-foot">Manager: ${esc(cfg?.manager||'')}</div></div>
+    <div class="row noprint" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="f_print">Imprimir</button><button class="btn ghost" id="f_close">Cerrar</button></div>`, 'wide');
+  m.querySelector('#f_close').onclick = () => m.remove();
+  m.querySelector('#f_print').onclick = () => window.print();
+}
+
+/* ---------- Arranque ---------- */
+let sb = null, cfg = null, current = 'inicio', gameOpen = null, resultOpen = null;
+const url = SUPABASE_URL || localStorage.getItem('sb_url') || '';
+const key = SUPABASE_KEY || localStorage.getItem('sb_key') || '';
+
+function setupScreen(msg){
+  $('#nav').innerHTML='';
+  app.innerHTML = `<section class="card" style="max-width:560px;margin:30px auto"><h2>Conectar con Supabase</h2>
+    ${msg?`<div class="warn">${esc(msg)}</div>`:''}
+    <p class="hint" style="margin-top:0">Primero ejecuta <b>schema.sql</b> en el SQL Editor de tu proyecto. Luego copia la URL y la clave pública (anon / publishable) desde <b>Project Settings → API</b>.</p>
+    <form id="fc"><label>Project URL<input id="c_url" placeholder="https://xxxx.supabase.co" required></label>
+    <label>Clave pública (anon / publishable)<input id="c_key" required></label>
+    <button class="btn">Conectar</button></form></section>`;
+  $('#fc').onsubmit = e => { e.preventDefault(); localStorage.setItem('sb_url',$('#c_url').value.trim()); localStorage.setItem('sb_key',$('#c_key').value.trim()); location.reload(); };
+}
+
+function loginScreen(msg){
+  $('#nav').innerHTML=''; $('#hUser').style.display='none';
+  const cache = {nombre_equipo: localStorage.getItem('sb_team')||'', logo_url: localStorage.getItem('sb_logo')||''};
+  const head = c => `${c.logo_url?`<img class="logo" src="${esc(c.logo_url)}" alt="" style="width:120px;height:120px">`:'<span style="font-size:64px;line-height:120px">🥎</span>'}${c.nombre_equipo?`<div style="font-weight:700;font-size:18px;margin-top:8px">${esc(c.nombre_equipo)}</div>`:''}`;
+  app.innerHTML = `<div id="lg" style="text-align:center;margin:34px auto 0">${head(cache)}</div>
+    <section class="card" style="max-width:420px;margin:18px auto 40px"><h2>Iniciar sesión</h2>
+    ${msg?`<div class="warn">${esc(msg)}</div>`:''}
+    <form id="fl"><label>Correo electrónico<input id="l_mail" type="email" autocomplete="username" required></label>
+    <label>Contraseña<input id="l_pass" type="password" autocomplete="current-password" required></label>
+    <button class="btn" style="width:100%">Entrar</button></form>
+    <p class="hint">Los usuarios los crea el administrador en Supabase (Authentication → Users).</p>
+    ${localStorage.getItem('sb_url')?'<p class="hint"><a href="#" id="l_reset">Cambiar conexión a Supabase</a></p>':''}</section>`;
+  if($('#l_reset')) $('#l_reset').onclick = e => { e.preventDefault(); localStorage.removeItem('sb_url'); localStorage.removeItem('sb_key'); location.reload(); };
+  (async () => { try {
+    const data = await q(sb.from('configuracion').select('nombre_equipo,logo_url').eq('id',1).maybeSingle());
+    if(!data || !$('#lg')) return;
+    localStorage.setItem('sb_team', data.nombre_equipo||''); localStorage.setItem('sb_logo', data.logo_url||'');
+    $('#lg').innerHTML = head(data);
+  } catch(e){} })();
+  $('#fl').onsubmit = async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button'); btn.disabled = true;
+    const {error} = await sb.auth.signInWithPassword({email:$('#l_mail').value.trim(), password:$('#l_pass').value});
+    if(error){ btn.disabled = false; return toast(/invalid|credentials/i.test(error.message) ? 'Correo o contraseña incorrectos' : error.message, true); }
+    startApp();
+  };
+}
+async function startApp(){
+  const {data:{session}} = await sb.auth.getSession();
+  if(!session) return loginScreen();
+  $('#hMail').textContent = session.user.email; $('#hUser').style.display = 'flex';
+  try { await loadCfg(); } catch(e){ return setupScreen('No se pudo leer la base de datos: ' + errMsg(e) + ' — verifica que ejecutaste schema.sql y que la URL y la clave son correctas.'); }
+  current = 'inicio'; gameOpen = null; resultOpen = null;
+  render();
+}
+async function boot(){
+  if(!url || !key) return setupScreen();
+  sb = supabase.createClient(url, key);
+  $('#logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  sb.auth.onAuthStateChange(ev => { if(ev==='SIGNED_OUT') loginScreen(); });
+  startApp();
+}
+async function loadCfg(){
+  cfg = await q(sb.from('configuracion').select('*').eq('id',1).maybeSingle());
+  $('#hTeam').textContent = cfg?.nombre_equipo || 'Sistema de Estadísticas de Softball';
+  $('#hMgr').textContent = cfg ? 'Manager: ' + cfg.manager : 'Configura el equipo en el módulo Configuración';
+  $('#hLogo').style.display = cfg?.logo_url ? '' : 'none';
+  if(cfg?.logo_url) $('#hLogo').src = cfg.logo_url;
+  $('#hBall').style.display = cfg?.logo_url ? 'none' : '';
+  TEAMP = teamPalette(cfg?.logo_url);
+  try { localStorage.setItem('sb_team', cfg?.nombre_equipo||''); localStorage.setItem('sb_logo', cfg?.logo_url||''); } catch(e){}
+}
+function go(v){ current=v; gameOpen=null; resultOpen=null; render(); }
+async function render(){
+  $('#nav').innerHTML = VIEWS.map(([k,l])=>`<button class="${k===current?'on':''}" data-v="${k}">${l}</button>`).join('');
+  $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.v));
+  app.innerHTML = '<p class="empty">Cargando…</p>';
+  try {
+    await ({inicio:viewInicio, jugador:viewJugador, torneo:viewTorneo, juego:viewJuego, resultados:viewResultados, config:viewConfig})[current]();
+  } catch(e){ console.error(e); app.innerHTML = `<div class="warn">Error: ${esc(errMsg(e))}</div>`; }
+}
+
+/* ---------- INICIO: estadísticas del equipo ---------- */
+async function viewInicio(){
+  const [js, st, gm] = await Promise.all([
+    q(sb.from('jugadores').select('*').order('numero_camiseta')),
+    q(sb.from('juego_stats').select('*')),
+    q(sb.from('juegos').select('*, juego_entradas(*)'))
+  ]);
+  const rec = record(gm);
+  const rows = js.map(p=>{ const mine=st.filter(x=>x.jugador_id===p.correlativo); return {p, jj:mine.length, s:sumStats(mine)}; })
+                 .sort((a,b)=>calc(b.s).avg-calc(a.s).avg || b.s.h-a.s.h);
+  const team = sumStats(st);
+  app.innerHTML = `${cfg?'':'<div class="warn">Aún no has configurado el equipo. Ve al módulo <b>Configuración</b>.</div>'}
+  <div class="cards">
+    <div class="kpi"><b>${rec.juegos}</b><span>Juegos finalizados</span></div>
+    <div class="kpi"><b style="color:#17623a">${rec.G}</b><span>Ganados</span></div>
+    <div class="kpi"><b style="color:var(--red)">${rec.P}</b><span>Perdidos</span></div>
+    <div class="kpi"><b>${rec.E}</b><span>Empatados</span></div>
+    <div class="kpi"><b>${rec.rf}</b><span>Carreras a favor</span></div>
+    <div class="kpi"><b>${rec.rc}</b><span>Carreras en contra</span></div>
+  </div>
+  <section class="card"><h2>${logo('sm')} Estadísticas acumuladas del equipo</h2>
+  ${js.length? `<div class="tw"><table class="tbl"><thead>${statHeader('<th>#</th><th class="l">Jugador</th>',true)}</thead><tbody>
+    ${rows.map(r=>`<tr><td>${r.p.numero_camiseta}</td><td class="l">${esc(r.p.nombre_apellido)}</td>${statCells(r.s,r.jj)}</tr>`).join('')}
+    <tr class="tot"><td></td><td class="l">EQUIPO</td>${statCells(team, gm.length)}</tr></tbody></table></div>
+    <p class="hint">VB veces al bate · H hits · CA carreras anotadas · CI carreras impulsadas · BB bases por bolas · K ponches · BR bases robadas · FS fly de sacrificio · E errores · AVG promedio · OBP porcentaje de embasado · SLG slugging · OPS OBP+SLG. Ordenado por AVG.</p>`
+   : '<p class="empty">Todavía no hay jugadores registrados.</p>'}</section>`;
+}
+
+/* ---------- REGISTRAR JUGADOR ---------- */
+let editJ = null, fotoFile = null;
+async function viewJugador(){
+  const js = await q(sb.from('jugadores').select('*').order('correlativo'));
+  const e = editJ;
+  app.innerHTML = `<section class="card"><h2>${e?`Editar jugador N.º ${e.correlativo}`:'Registrar Jugador'}</h2>
+  <form id="fj" class="split"><div>
+    <label>Nombre y Apellido<input id="j_nombre" required value="${esc(e?.nombre_apellido)}"></label>
+    <label>Cédula<input id="j_cedula" required value="${esc(e?.cedula)}"></label>
+    <label>Fecha de Nacimiento<input id="j_fnac" type="date" required value="${esc(e?.fecha_nacimiento)}"></label>
+    <label>Número de Camiseta<input id="j_num" type="number" min="0" max="999" required value="${esc(e?.numero_camiseta)}"></label>
+    <div class="row"><button class="btn">${e?'Guardar cambios':'Registrar'}</button>${e?'<button type="button" class="btn ghost" id="j_cancel">Cancelar</button>':''}</div>
+  </div>
+  <div class="photo"><div class="ph" id="ph">${e?.foto_url?`<img src="${esc(e.foto_url)}" alt="">`:'<span>Sin imagen</span>'}</div>
+    <label class="btn ghost" style="margin:0">Insertar imagen<input type="file" id="j_foto" accept="image/*" hidden></label></div></form></section>
+  <section class="card"><h2>Jugadores registrados (${js.length})</h2>
+  ${js.length?`<div class="tw"><table class="tbl"><thead><tr><th>Correlativo</th><th></th><th class="l">Nombre y Apellido</th><th>Cédula</th><th>Nacimiento</th><th>Edad</th><th>Camiseta</th><th></th></tr></thead><tbody>
+  ${js.map(p=>`<tr><td>${p.correlativo}</td><td>${p.foto_url?`<img class="thumb" src="${esc(p.foto_url)}" alt="">`:'<span class="thumb" style="display:inline-block"></span>'}</td>
+   <td class="l">${esc(p.nombre_apellido)}</td><td>${esc(p.cedula)}</td><td>${fmtDate(p.fecha_nacimiento)}</td><td>${edad(p.fecha_nacimiento)}</td><td><b>${p.numero_camiseta}</b></td>
+   <td><button class="btn sm" data-fi="${p.correlativo}">Ficha</button> <button class="btn ghost sm" data-ed="${p.correlativo}">Editar</button> <button class="btn danger sm" data-del="${p.correlativo}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">Aún no hay jugadores.</p>'}</section>`;
+
+  $('#j_foto').onchange = ev => { fotoFile = ev.target.files[0] || null; if(fotoFile) $('#ph').innerHTML = `<img src="${URL.createObjectURL(fotoFile)}" alt="">`; };
+  app.querySelectorAll('[data-fi]').forEach(b=>b.onclick=()=>fichaModal(js.find(p=>p.correlativo==b.dataset.fi)));
+  if($('#j_cancel')) $('#j_cancel').onclick = () => { editJ=null; fotoFile=null; render(); };
+  app.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{ editJ = js.find(p=>p.correlativo==b.dataset.ed); fotoFile=null; render(); window.scrollTo(0,0); });
+  app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('¿Eliminar este jugador?')) return;
+    try { await q(sb.from('jugadores').delete().eq('correlativo',b.dataset.del)); toast('Jugador eliminado'); render(); } catch(er){ toast(errMsg(er),true); }
+  });
+  $('#fj').onsubmit = async ev => {
+    ev.preventDefault();
+    const num = parseInt($('#j_num').value,10);
+    try {
+      let dq = sb.from('jugadores').select('correlativo,nombre_apellido').eq('numero_camiseta',num);
+      if(editJ) dq = dq.neq('correlativo',editJ.correlativo);
+      const dup = await q(dq);
+      if(dup.length) return toast(`La camiseta ${num} ya la tiene ${dup[0].nombre_apellido}. Elige otro número.`,true);
+      let foto = editJ?.foto_url || null;
+      if(fotoFile){
+        const ext = (fotoFile.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');
+        const path = `${Date.now()}_${$('#j_cedula').value.replace(/[^a-zA-Z0-9]/g,'')}.${ext}`;
+        const up = await sb.storage.from(BUCKET).upload(path, fotoFile, {contentType:fotoFile.type});
+        if(up.error) throw up.error;
+        foto = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      }
+      const rec = {nombre_apellido:$('#j_nombre').value.trim(), cedula:$('#j_cedula').value.trim(), fecha_nacimiento:$('#j_fnac').value, numero_camiseta:num, foto_url:foto};
+      if(editJ) await q(sb.from('jugadores').update(rec).eq('correlativo',editJ.correlativo));
+      else await q(sb.from('jugadores').insert(rec));
+      toast(editJ?'Jugador actualizado':'Jugador registrado'); editJ=null; fotoFile=null; render();
+    } catch(er){ toast(errMsg(er),true); }
+  };
+}
+
+/* ---------- REGISTRAR TORNEO ---------- */
+let equiposTmp = [];
+async function viewTorneo(){
+  const [ts, eqs, gm] = await Promise.all([
+    q(sb.from('torneos').select('*').order('created_at',{ascending:false})),
+    q(sb.from('torneo_equipos').select('*').order('es_nuestro',{ascending:false}).order('nombre')),
+    q(sb.from('juegos').select('*, juego_entradas(*)'))
+  ]);
+  app.innerHTML = `<section class="card"><h2>Registrar Torneo</h2>
+  ${cfg?'':'<div class="warn">Primero registra el nombre del equipo en <b>Configuración</b>: se agrega automáticamente a cada torneo.</div>'}
+  <label>Nombre de Torneo<input id="t_nombre"></label>
+  <label>Equipos participantes${cfg?` <span class="hint">(tu equipo <b>${esc(cfg.nombre_equipo)}</b> se agrega solo)</span>`:''}</label>
+  <div class="row" style="margin-top:-6px"><input id="t_eq" style="max-width:340px;margin:0" placeholder="Nombre del equipo rival"><button class="btn ghost" id="t_add" type="button">Agregar equipo</button></div>
+  <div id="t_chips" style="margin:10px 0"></div>
+  <button class="btn" id="t_save">Registrar torneo</button></section>
+  <section class="card"><h2>Torneos registrados (${ts.length})</h2>
+  ${ts.length?`<div class="tw"><table class="tbl"><thead><tr><th class="l">Torneo</th><th class="l">Equipos</th><th>Juegos</th><th>Ganados</th><th>Perdidos</th><th>Empatados</th></tr></thead><tbody>
+  ${ts.map(t=>{ const r=record(gm.filter(j=>j.torneo_id===t.id)); return `<tr><td class="l"><b>${esc(t.nombre)}</b></td>
+    <td class="l">${eqs.filter(e=>e.torneo_id===t.id).map(e=>`<span class="chip ${e.es_nuestro?'me':''}">${esc(e.nombre)}</span>`).join('')}</td>
+    <td>${r.juegos}</td><td><span class="badge b-G">${r.G}</span></td><td><span class="badge b-P">${r.P}</span></td><td><span class="badge b-E">${r.E}</span></td></tr>`; }).join('')}</tbody></table></div>`
+   :'<p class="empty">Aún no hay torneos registrados.</p>'}</section>`;
+  const chips = () => { $('#t_chips').innerHTML = (cfg?`<span class="chip me">${esc(cfg.nombre_equipo)}</span>`:'') + equiposTmp.map((n,i)=>`<span class="chip">${esc(n)} <button data-i="${i}" title="Quitar">×</button></span>`).join(''); 
+    $('#t_chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{ equiposTmp.splice(+b.dataset.i,1); chips(); }); };
+  chips();
+  const add = () => { const n=$('#t_eq').value.trim(); if(!n) return;
+    if(equiposTmp.some(x=>x.toLowerCase()===n.toLowerCase()) || (cfg && cfg.nombre_equipo.toLowerCase()===n.toLowerCase())) return toast('Ese equipo ya está en la lista',true);
+    equiposTmp.push(n); $('#t_eq').value=''; chips(); $('#t_eq').focus(); };
+  $('#t_add').onclick = add;
+  $('#t_eq').onkeydown = e => { if(e.key==='Enter'){ e.preventDefault(); add(); } };
+  $('#t_save').onclick = async () => {
+    const nombre = $('#t_nombre').value.trim();
+    if(!cfg) return toast('Configura primero el nombre de tu equipo',true);
+    if(!nombre) return toast('Escribe el nombre del torneo',true);
+    if(!equiposTmp.length) return toast('Agrega al menos un equipo rival',true);
+    try {
+      const t = await q(sb.from('torneos').insert({nombre}).select().single());
+      await q(sb.from('torneo_equipos').insert([{torneo_id:t.id,nombre:cfg.nombre_equipo,es_nuestro:true}, ...equiposTmp.map(n=>({torneo_id:t.id,nombre:n,es_nuestro:false}))]));
+      equiposTmp=[]; toast('Torneo registrado'); render();
+    } catch(er){ toast(errMsg(er),true); }
+  };
+}
+
+/* ---------- JUEGO ---------- */
+let lineup = null, PLAYERS = [];
+const newLineup = () => Array.from({length:12},()=>({j:'',p:''}));
+let reservas = [];
+async function viewJuego(){ return gameOpen ? viewGame() : viewJuegoLista(); }
+
+async function viewJuegoLista(){
+  const [ts, eqs, gm] = await Promise.all([
+    q(sb.from('torneos').select('*').order('created_at',{ascending:false})),
+    q(sb.from('torneo_equipos').select('*').eq('es_nuestro',false).order('nombre')),
+    q(sb.from('juegos').select('*, juego_entradas(*), torneos(nombre), rival:torneo_equipos(nombre)').order('fecha',{ascending:false}).order('id',{ascending:false}))
+  ]);
+  PLAYERS = await q(sb.from('jugadores').select('*').order('numero_camiseta'));
+  if(!lineup) lineup = newLineup();
+  const hoy = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+  app.innerHTML = `<section class="card"><h2>Registrar Juego</h2>
+  ${!ts.length?'<div class="warn">Primero registra un torneo con sus equipos en <b>Registrar Torneo</b>.</div>':''}
+  ${!PLAYERS.length?'<div class="warn">Primero registra jugadores en <b>Registrar Jugador</b>.</div>':''}
+  <div class="row" style="align-items:flex-start">
+    <label style="flex:1;min-width:220px">Torneo<select id="g_t">${ts.map(t=>`<option value="${t.id}">${esc(t.nombre)}</option>`).join('')}</select></label>
+    <label style="flex:1;min-width:220px">Juega contra<select id="g_r"></select></label>
+    <label style="flex:0 0 180px">Fecha<input id="g_f" type="date" value="${hoy}"></label>
+  </div>
+  <h3>Line Up ${cfg?esc(cfg.nombre_equipo):''}</h3><div id="g_lu" class="tw"></div>
+  <div class="row" style="margin-top:10px"><button class="btn ghost sm" id="lu_add">+ Agregar bateador</button><button class="btn ghost sm" id="lu_del">− Quitar último</button></div>
+  <h3>Reserva</h3><div id="g_rs"></div>
+  <div style="margin-top:16px"><button class="btn" id="g_save">Registrar juego e ingresar</button></div></section>
+  <section class="card"><h2>Juegos registrados (${gm.length})</h2>
+  ${gm.length?`<div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th class="l">Torneo</th><th class="l">Juego</th><th>Marcador</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badge(result(j))}</td><td><button class="btn sm" data-open="${j.id}">${j.estado==='finalizado'?'Ver / Editar':'Ingresar'}</button></td></tr>`; }).join('')}</tbody></table></div>`:'<p class="empty">Todavía no hay juegos registrados.</p>'}</section>`;
+
+  const fillRivals = () => { const tid=+$('#g_t').value; $('#g_r').innerHTML = eqs.filter(e=>e.torneo_id===tid).map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join('') || '<option value="">(sin equipos rivales)</option>'; };
+  if(ts.length) $('#g_t').onchange = fillRivals; fillRivals();
+
+  const usedIds = () => new Set([...lineup.map(r=>r.j), ...reservas.map(String)].filter(Boolean));
+  const optP = (p,sel) => `<option value="${p.correlativo}" ${sel?'selected':''}>#${p.numero_camiseta} ${esc(p.nombre_apellido)}</option>`;
+  const paintRes = () => {
+    const used = usedIds();
+    $('#g_rs').innerHTML = `<div>${reservas.map(id=>{ const p=PLAYERS.find(x=>x.correlativo==id); return p?`<span class="chip">#${p.numero_camiseta} ${esc(p.nombre_apellido)} <b>RS</b> <button data-rm="${id}" title="Quitar">×</button></span>`:''; }).join('') || '<span class="hint">Sin jugadores en reserva.</span>'}</div>
+    <div class="row" style="margin-top:8px"><select id="rs_sel" style="max-width:340px;margin:0"><option value="">— Agregar jugador a la reserva —</option>${PLAYERS.filter(p=>!used.has(String(p.correlativo))).map(p=>optP(p,false)).join('')}</select><button class="btn ghost sm" id="rs_add" type="button">Agregar a reserva</button></div>
+    <p class="hint">Los jugadores de la reserva podrán entrar al juego en cualquier momento haciendo un cambio.</p>`;
+    $('#g_rs').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ reservas = reservas.filter(x=>String(x)!==b.dataset.rm); paint(); });
+    $('#rs_add').onclick = () => { const v=$('#rs_sel').value; if(!v) return; reservas.push(v); paint(); };
+  };
+  const paint = () => {
+    const used = usedIds();
+    $('#g_lu').innerHTML = `<table class="tbl"><thead><tr><th>Orden</th><th class="l">Jugador</th><th class="l">Posición</th></tr></thead><tbody>
+    ${lineup.map((r,i)=>`<tr><td><b>${i+1}</b></td>
+      <td class="l"><select data-i="${i}" data-k="j" style="margin:0"><option value="">— Seleccionar —</option>${PLAYERS.filter(p=>!used.has(String(p.correlativo))||String(p.correlativo)===r.j).map(p=>optP(p,String(p.correlativo)===r.j)).join('')}</select></td>
+      <td class="l"><select data-i="${i}" data-k="p" style="margin:0"><option value="">—</option>${POSICIONES.map(x=>`<option ${x===r.p?'selected':''}>${x}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>
+    <p class="hint">P pitcher · C receptor · 1B/2B/3B bases · SS campo corto · SF short field abreviado · LF/CF/RF jardineros · 4F cuarto field · BD bateador designado · BA bateador adicional · RS reserva (si eliges RS, el jugador pasa a la lista de reserva).</p>`;
+    $('#g_lu').querySelectorAll('select').forEach(s=>s.onchange=()=>{ lineup[+s.dataset.i][s.dataset.k]=s.value; if(s.dataset.k==='j') paint(); });
+    paintRes();
+  };
+  paint();
+  $('#lu_add').onclick = () => { if(lineup.length<15){ lineup.push({j:'',p:''}); paint(); } };
+  $('#lu_del').onclick = () => { if(lineup.length>1){ lineup.pop(); paint(); } };
+  app.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ gameOpen=+b.dataset.open; render(); });
+
+  $('#g_save').onclick = async () => {
+    const tid=+$('#g_t').value, rid=+$('#g_r').value, fecha=$('#g_f').value;
+    const slots = lineup.filter(r=>r.j);
+    const tit = slots.filter(r=>r.p!=='RS');
+    const res = [...new Set([...slots.filter(r=>r.p==='RS').map(r=>+r.j), ...reservas.map(Number)])];
+    if(!tid) return toast('Selecciona un torneo',true);
+    if(!rid) return toast('Selecciona el equipo rival',true);
+    if(!fecha) return toast('Indica la fecha del juego',true);
+    if(!tit.length) return toast('Agrega al menos un jugador al line up',true);
+    const luRows = [...tit.map((r,i)=>({orden:i+1,jugador_id:+r.j,posicion:r.p||null,rol:'titular'})),
+                    ...res.map((id,i)=>({orden:101+i,jugador_id:id,posicion:'RS',rol:'reserva'}))];
+    try {
+      const j = await q(sb.from('juegos').insert({torneo_id:tid,rival_id:rid,fecha}).select().single());
+      await q(sb.from('juego_lineup').insert(luRows.map(r=>({...r,juego_id:j.id}))));
+      await q(sb.from('juego_stats').insert(luRows.filter(r=>r.rol==='titular').map(r=>({juego_id:j.id,jugador_id:r.jugador_id}))));
+      await q(sb.from('juego_entradas').insert(Array.from({length:7},(_,i)=>({juego_id:j.id,entrada:i+1}))));
+      lineup = null; reservas = []; gameOpen = j.id; toast('Juego registrado'); render();
+    } catch(er){ toast(errMsg(er),true); }
+  };
+}
+
+/* --- Pantalla del juego en vivo --- */
+let G = null;
+const DEPS = {h:{vb:1}, d2:{h:1,vb:1}, d3:{h:1,vb:1}, hr:{h:1,vb:1}, k:{vb:1}};
+const RANK = {titular:0, salio:1, reserva:2};
+const JUG = 'jugadores(nombre_apellido,numero_camiseta,foto_url)';
+const ordLabel = l => l.rol==='titular' ? l.orden : l.rol==='salio' ? '↩' : 'RS';
+
+/* Jugador más valioso (MVP): bases totales + CA + CI + ½(BB+HBP+BR) − ½E − ¼K */
+const mvpPts = s => (s.h + s.d2 + 2*s.d3 + 3*s.hr) + s.ca + s.ci + 0.5*(s.bb+s.hbp+s.br) - 0.5*s.e - 0.25*s.k;
+function mvpOf(rows){
+  let best = null;
+  for(const s of rows){
+    const p = mvpPts(s); if(p <= 0) continue;
+    if(!best || p>best.p || (p===best.p && (s.ci>best.s.ci || (s.ci===best.s.ci && s.h>best.s.h)))) best = {s,p};
+  }
+  return best;
+}
+const avatar = (pl,cls='') => pl?.foto_url ? `<img class="thumb ${cls}" src="${esc(pl.foto_url)}" alt="">` : `<span class="thumb ${cls}" style="display:inline-block"></span>`;
+function mvpBox(rows, fin){
+  const b = mvpOf(rows), tit = fin ? '⭐ Jugador más valioso del juego' : '⭐ Jugador más valioso (parcial, juego en curso)';
+  if(!b) return `<div class="mvp"><span style="font-size:30px">⭐</span><div><small>${tit}</small><b>Aún sin datos suficientes</b></div></div>`;
+  const s = b.s, pl = s.jugadores;
+  return `<div class="mvp">${avatar(pl,'big')}<div><small>${tit}</small><b>#${pl.numero_camiseta} ${esc(pl.nombre_apellido)}</b>
+    <small>${s.h}-${s.vb} (H-VB) · HR ${s.hr} · CI ${s.ci} · CA ${s.ca} · BR ${s.br} · ${b.p.toFixed(1)} pts</small></div><span style="margin-left:auto">${logo()}</span></div>`;
+}
+function mvpMini(rows, fin){
+  const b = mvpOf(rows); if(!b) return '<span class="hint">—</span>';
+  const pl = b.s.jugadores;
+  return `${avatar(pl)} <b>#${pl.numero_camiseta}</b> ${esc(pl.nombre_apellido)}${fin?'':' <span class="hint">(parcial)</span>'}`;
+}
+
+async function loadGame(id){
+  const [j, lu, st] = await Promise.all([
+    q(sb.from('juegos').select('*, juego_entradas(*), torneos(nombre), rival:torneo_equipos(nombre)').eq('id',id).single()),
+    q(sb.from('juego_lineup').select('*, '+JUG).eq('juego_id',id)),
+    q(sb.from('juego_stats').select('*, '+JUG).eq('juego_id',id))
+  ]);
+  j.juego_entradas.sort((a,b)=>a.entrada-b.entrada);
+  lu.sort((a,b)=>RANK[a.rol]-RANK[b.rol] || a.orden-b.orden);
+  return {j, lu, st};
+}
+async function viewGame(){
+  PLAYERS = await q(sb.from('jugadores').select('*').order('numero_camiseta'));
+  G = await loadGame(gameOpen);
+  paintGame();
+}
+async function refreshGame(){ G = await loadGame(G.j.id); paintGame(); }
+
+function paintGame(){
+  const {j, lu, st} = G, c = runs(j), fin = j.estado==='finalizado';
+  const nombre = cfg?.nombre_equipo || 'Nuestro equipo', rival = j.rival?.nombre || 'Rival';
+  const ent = j.juego_entradas;
+  const jugando = lu.filter(l => l.rol!=='reserva' && st.some(x=>x.jugador_id===l.jugador_id));
+  const res = lu.filter(l => l.rol==='reserva');
+  const tot = sumStats(st), kt = calc(tot);
+  app.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" id="back">← Volver a juegos</button>
+    <span class="hint" style="margin:0">${esc(j.torneos?.nombre)} · ${fmtDate(j.fecha)}</span> ${badge(result(j))}</div>
+  <section class="card"><div class="score"><div style="text-align:center">${logo('lg')}<br>${esc(nombre)}<small>Nuestro equipo</small></div><div id="sc">${c.n} - ${c.r}</div><div style="text-align:center">${esc(rival)}<small>Rival</small></div></div>
+  <div class="tw"><table class="tbl inn"><thead><tr><th class="l">Equipo</th>${ent.map(e=>`<th>${e.entrada}</th>`).join('')}<th>R</th></tr></thead><tbody>
+    <tr><td class="l"><b>${esc(nombre)}</b></td>${ent.map(e=>`<td><input type="number" min="0" value="${e.carreras_nuestras}" data-e="${e.entrada}" data-f="carreras_nuestras"></td>`).join('')}<td><b>${c.n}</b></td></tr>
+    <tr><td class="l"><b>${esc(rival)}</b></td>${ent.map(e=>`<td><input type="number" min="0" value="${e.carreras_rival}" data-e="${e.entrada}" data-f="carreras_rival"></td>`).join('')}<td><b>${c.r}</b></td></tr>
+  </tbody></table></div>
+  <div class="row" style="margin-top:10px"><button class="btn ghost sm" id="add_inn">+ Agregar entrada</button></div></section>
+
+  ${mvpBox(st, fin)}
+  <section class="card"><h2>${logo('sm')} Estadísticas de los jugadores</h2>
+  <p class="hint" style="margin-top:-8px;margin-bottom:10px">H suma también un VB; 2B, 3B y HR suman también un H y un VB; K suma un VB. Los outs en juego se anotan sumando VB. <b>↩</b> = jugador que salió por un cambio.</p>
+  <div class="tw"><table class="tbl"><thead>${statHeader('<th>Ord</th><th>#</th><th class="l">Jugador</th><th>Pos</th>').replace(/<\/tr>$/,'<th></th></tr>')}</thead><tbody>
+  ${jugando.map(l=>{ const s=st.find(x=>x.jugador_id===l.jugador_id), k=calc(s);
+    return `<tr${l.rol==='salio'?' style="opacity:.55"':''}><td>${ordLabel(l)}</td><td>${l.jugadores.numero_camiseta}</td><td class="l">${esc(l.jugadores.nombre_apellido)}</td><td>${esc(l.posicion||'')}</td>
+    ${STATS.map(([f])=>`<td><span class="st"><button data-s="${s.id}" data-f="${f}" data-d="-1">−</button><span>${s[f]}</span><button data-s="${s.id}" data-f="${f}" data-d="1">+</button></span></td>`).join('')}
+    <td><b>${r3(k.avg)}</b></td><td>${r3(k.obp)}</td><td>${r3(k.slg)}</td><td>${r3(k.ops)}</td>
+    <td>${l.rol==='titular'?`<button class="btn ghost sm" data-sub="${l.id}">Cambio</button>`:''}</td></tr>`; }).join('')}
+  <tr class="tot"><td colspan="4" class="l">EQUIPO</td>${STATS.map(([f])=>`<td>${tot[f]}</td>`).join('')}<td>${r3(kt.avg)}</td><td>${r3(kt.obp)}</td><td>${r3(kt.slg)}</td><td>${r3(kt.ops)}</td><td></td></tr>
+  </tbody></table></div></section>
+
+  <section class="card"><h2>Reserva y cambios</h2>
+  <div>${res.length ? res.map(l=>`<span class="chip">#${l.jugadores.numero_camiseta} ${esc(l.jugadores.nombre_apellido)} <button class="btn sm" data-in="${l.jugador_id}" style="padding:2px 9px;color:#fff">Entrar</button><button data-rmres="${l.id}" title="Quitar de la reserva">×</button></span>`).join('') : '<p class="empty" style="padding:0;margin:0">No hay jugadores en la reserva.</p>'}</div>
+  <div class="row" style="margin-top:12px"><button class="btn ghost sm" id="add_lu">+ Agregar al line up</button></div>
+  <p class="hint">«Cambio» saca a un titular y mete a un jugador de la reserva (u otro jugador registrado) en el mismo turno al bate. El jugador que sale conserva sus estadísticas.</p></section>
+  <div class="row"><button class="btn" id="fin">${fin?'Reabrir juego':'Finalizar juego'}</button><button class="btn danger" id="delg">Eliminar juego</button></div>`;
+
+  $('#back').onclick = () => { gameOpen=null; render(); };
+  $('#add_inn').onclick = async () => { try { await q(sb.from('juego_entradas').insert({juego_id:j.id,entrada:ent.length+1})); await refreshGame(); } catch(er){ toast(errMsg(er),true); } };
+  app.querySelectorAll('.inn input').forEach(i=>i.onchange = async () => {
+    const v = Math.max(0, parseInt(i.value,10)||0);
+    try { await q(sb.from('juego_entradas').update({[i.dataset.f]:v}).eq('juego_id',j.id).eq('entrada',i.dataset.e)); G.j.juego_entradas.find(e=>e.entrada==i.dataset.e)[i.dataset.f]=v; paintGame(); }
+    catch(er){ toast(errMsg(er),true); }
+  });
+  app.querySelectorAll('.st button').forEach(b=>b.onclick=()=>bump(+b.dataset.s, b.dataset.f, +b.dataset.d));
+  app.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>subModal(+b.dataset.sub));
+  app.querySelectorAll('[data-in]').forEach(b=>b.onclick=()=>subModal(null, +b.dataset.in));
+  app.querySelectorAll('[data-rmres]').forEach(b=>b.onclick=async()=>{ try { await q(sb.from('juego_lineup').delete().eq('id',+b.dataset.rmres)); await refreshGame(); } catch(er){ toast(errMsg(er),true); } });
+  $('#add_lu').onclick = addModal;
+  $('#fin').onclick = async () => { try { await q(sb.from('juegos').update({estado:fin?'en_juego':'finalizado'}).eq('id',j.id)); G.j.estado = fin?'en_juego':'finalizado'; toast(fin?'Juego reabierto':'Juego finalizado'); paintGame(); } catch(er){ toast(errMsg(er),true); } };
+  $('#delg').onclick = async () => { if(!confirm('¿Eliminar este juego y todas sus estadísticas?')) return; try { await q(sb.from('juegos').delete().eq('id',j.id)); gameOpen=null; toast('Juego eliminado'); render(); } catch(er){ toast(errMsg(er),true); } };
+}
+async function bump(sid, f, d){
+  const s = G.st.find(x=>x.id===sid);
+  if(d<0 && s[f]===0) return;
+  const ch = {}, put = (k,dd) => { ch[k] = Math.max(0, (ch[k] ?? s[k]) + dd); };
+  put(f,d); Object.entries(DEPS[f]||{}).forEach(([k,m])=>put(k,d*m));
+  const n = {...s, ...ch};
+  if(n.h > n.vb || n.d2+n.d3+n.hr > n.h || n.h+n.k > n.vb) return toast('Combinación no válida (revisa VB, H, extrabases y K)',true);
+  Object.assign(s, ch); paintGame();
+  try { await q(sb.from('juego_stats').update(ch).eq('id',sid)); } catch(er){ toast(errMsg(er),true); await refreshGame(); }
+}
+
+/* --- Cambios y line up durante el juego --- */
+const posOpts = sel => ['<option value="">—</option>', ...POSICIONES.filter(x=>x!=='RS').map(x=>`<option ${x===sel?'selected':''}>${x}</option>`)].join('');
+const lineupFree = () => { const inLu = new Set(G.lu.map(l=>l.jugador_id)); return PLAYERS.filter(p=>!inLu.has(p.correlativo)); };
+const upsertStats = (jid, pid) => q(sb.from('juego_stats').upsert({juego_id:jid, jugador_id:pid}, {onConflict:'juego_id,jugador_id', ignoreDuplicates:true}));
+
+async function doSub(outId, pid, pos){
+  const {j, lu} = G, out = lu.find(l=>l.id===outId), inRow = lu.find(l=>l.jugador_id===pid);
+  const nextOut = Math.max(200, ...lu.filter(l=>l.rol==='salio').map(l=>l.orden)) + 1;
+  await q(sb.from('juego_lineup').update({orden:nextOut, rol:'salio'}).eq('id',out.id));
+  if(inRow) await q(sb.from('juego_lineup').update({orden:out.orden, rol:'titular', posicion:pos}).eq('id',inRow.id));
+  else await q(sb.from('juego_lineup').insert({juego_id:j.id, orden:out.orden, jugador_id:pid, posicion:pos, rol:'titular'}));
+  await upsertStats(j.id, pid);
+}
+function subModal(outId, inPid){
+  const tit = G.lu.filter(l=>l.rol==='titular'), res = G.lu.filter(l=>l.rol==='reserva'), libres = lineupFree();
+  if(!tit.length) return toast('No hay titulares para sustituir',true);
+  if(!res.length && !libres.length) return toast('No hay jugadores disponibles para entrar',true);
+  const o = outId || tit[0].id;
+  const m = modal(`<h2>Cambio de jugador</h2>
+    <label>Sale<select id="sb_out">${tit.map(l=>`<option value="${l.id}" ${l.id===o?'selected':''}>${l.orden}. #${l.jugadores.numero_camiseta} ${esc(l.jugadores.nombre_apellido)} (${esc(l.posicion||'—')})</option>`).join('')}</select></label>
+    <label>Entra<select id="sb_in">
+      ${res.length?`<optgroup label="Reserva">${res.map(l=>`<option value="${l.jugador_id}" ${l.jugador_id===inPid?'selected':''}>#${l.jugadores.numero_camiseta} ${esc(l.jugadores.nombre_apellido)}</option>`).join('')}</optgroup>`:''}
+      ${libres.length?`<optgroup label="Otros jugadores registrados">${libres.map(p=>`<option value="${p.correlativo}">#${p.numero_camiseta} ${esc(p.nombre_apellido)}</option>`).join('')}</optgroup>`:''}</select></label>
+    <label>Posición que cubre<select id="sb_pos">${posOpts('')}</select></label>
+    <div class="row"><button class="btn" id="sb_ok">Confirmar cambio</button><button class="btn ghost" id="sb_x">Cancelar</button></div>`);
+  const outSel = m.querySelector('#sb_out'), posSel = m.querySelector('#sb_pos');
+  const setPos = () => { const l = tit.find(x=>x.id==outSel.value); posSel.value = l?.posicion && l.posicion!=='RS' ? l.posicion : ''; };
+  outSel.onchange = setPos; setPos();
+  m.querySelector('#sb_x').onclick = () => m.remove();
+  m.querySelector('#sb_ok').onclick = async () => {
+    try { await doSub(+outSel.value, +m.querySelector('#sb_in').value, posSel.value||null); m.remove(); toast('Cambio realizado'); }
+    catch(er){ toast(errMsg(er),true); }
+    try { await refreshGame(); } catch(er){ toast(errMsg(er),true); }
+  };
+}
+function addModal(){
+  const libres = lineupFree();
+  if(!libres.length) return toast('Todos los jugadores registrados ya están en el line up',true);
+  const m = modal(`<h2>Agregar al line up</h2>
+    <label>Jugador<select id="ad_p">${libres.map(p=>`<option value="${p.correlativo}">#${p.numero_camiseta} ${esc(p.nombre_apellido)}</option>`).join('')}</select></label>
+    <label>Agregar como<select id="ad_m"><option value="reserva">Reserva</option><option value="bateador">Bateador (al final del orden)</option></select></label>
+    <label>Posición<select id="ad_pos" disabled>${posOpts('')}</select></label>
+    <div class="row"><button class="btn" id="ad_ok">Agregar</button><button class="btn ghost" id="ad_x">Cancelar</button></div>`);
+  const mode = m.querySelector('#ad_m'), pos = m.querySelector('#ad_pos');
+  mode.onchange = () => { pos.disabled = mode.value!=='bateador'; };
+  m.querySelector('#ad_x').onclick = () => m.remove();
+  m.querySelector('#ad_ok').onclick = async () => {
+    const pid = +m.querySelector('#ad_p').value, {j, lu} = G;
+    try {
+      if(mode.value==='reserva'){
+        const o = Math.max(100, ...lu.filter(l=>l.rol==='reserva').map(l=>l.orden)) + 1;
+        await q(sb.from('juego_lineup').insert({juego_id:j.id, orden:o, jugador_id:pid, posicion:'RS', rol:'reserva'}));
+      } else {
+        const o = Math.max(0, ...lu.filter(l=>l.rol==='titular').map(l=>l.orden)) + 1;
+        await q(sb.from('juego_lineup').insert({juego_id:j.id, orden:o, jugador_id:pid, posicion:pos.value||null, rol:'titular'}));
+        await upsertStats(j.id, pid);
+      }
+      m.remove(); toast('Jugador agregado');
+    } catch(er){ toast(errMsg(er),true); }
+    try { await refreshGame(); } catch(er){ toast(errMsg(er),true); }
+  };
+}
+
+/* ---------- RESULTADOS ---------- */
+async function viewResultados(){
+  if(resultOpen) return viewResultadoDetalle();
+  const [gm, st] = await Promise.all([
+    q(sb.from('juegos').select('*, juego_entradas(*), torneos(nombre), rival:torneo_equipos(nombre)').order('fecha',{ascending:false}).order('id',{ascending:false})),
+    q(sb.from('juego_stats').select('*, '+JUG))
+  ]);
+  const rec = record(gm);
+  app.innerHTML = `<div class="cards">
+    <div class="kpi"><b>${gm.length}</b><span>Juegos registrados</span></div>
+    <div class="kpi"><b style="color:#17623a">${rec.G}</b><span>Ganados</span></div>
+    <div class="kpi"><b style="color:var(--red)">${rec.P}</b><span>Perdidos</span></div>
+    <div class="kpi"><b>${rec.E}</b><span>Empatados</span></div></div>
+  <section class="card"><h2>Resultados de los juegos</h2>
+  ${gm.length?`<div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th class="l">Torneo</th><th class="l">Juego</th><th>Marcador</th><th>Resultado</th><th class="l">⭐ Jugador más valioso</th><th></th></tr></thead><tbody>
+  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badge(result(j))}</td><td class="l">${mvpMini(st.filter(s=>s.juego_id===j.id), j.estado==='finalizado')}</td><td><button class="btn ghost sm" data-r="${j.id}">Ver estadísticas</button></td></tr>`; }).join('')}</tbody></table></div>
+  <p class="hint">Jugador más valioso = bases totales + carreras anotadas + impulsadas + ½ (BB + HBP + BR) − ½ errores − ¼ ponches.</p>`:'<p class="empty">Aún no hay juegos registrados.</p>'}</section>`;
+  app.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ resultOpen=+b.dataset.r; render(); });
+}
+async function viewResultadoDetalle(){
+  const {j, lu, st} = await loadGame(resultOpen), c = runs(j), fin = j.estado==='finalizado';
+  const nombre = cfg?.nombre_equipo || 'Nuestro equipo', rival = j.rival?.nombre || 'Rival', ent = j.juego_entradas;
+  const tot = sumStats(st);
+  const jugando = lu.filter(l => st.some(x=>x.jugador_id===l.jugador_id));
+  app.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" id="back">← Volver a resultados</button>
+    <span class="hint" style="margin:0">${esc(j.torneos?.nombre)} · ${fmtDate(j.fecha)}</span> ${badge(result(j))}</div>
+  <section class="card"><div class="score"><div style="text-align:center">${logo('lg')}<br>${esc(nombre)}</div><div>${c.n} - ${c.r}</div><div style="text-align:center">${esc(rival)}</div></div>
+  <div class="tw"><table class="tbl"><thead><tr><th class="l">Equipo</th>${ent.map(e=>`<th>${e.entrada}</th>`).join('')}<th>R</th></tr></thead><tbody>
+  <tr><td class="l"><b>${esc(nombre)}</b></td>${ent.map(e=>`<td>${e.carreras_nuestras}</td>`).join('')}<td><b>${c.n}</b></td></tr>
+  <tr><td class="l"><b>${esc(rival)}</b></td>${ent.map(e=>`<td>${e.carreras_rival}</td>`).join('')}<td><b>${c.r}</b></td></tr></tbody></table></div></section>
+  ${mvpBox(st, fin)}
+  <section class="card"><h2>${logo('sm')} Estadísticas por jugador</h2><div class="tw"><table class="tbl"><thead>${statHeader('<th>Ord</th><th>#</th><th class="l">Jugador</th><th>Pos</th>')}</thead><tbody>
+  ${jugando.map(l=>{ const s=st.find(x=>x.jugador_id===l.jugador_id); return `<tr${l.rol==='salio'?' style="opacity:.6"':''}><td>${ordLabel(l)}</td><td>${l.jugadores.numero_camiseta}</td><td class="l">${esc(l.jugadores.nombre_apellido)}</td><td>${esc(l.posicion||'')}</td>${statCells(s)}</tr>`; }).join('')}
+  <tr class="tot"><td colspan="4" class="l">EQUIPO</td>${statCells(tot)}</tr></tbody></table></div>
+  <p class="hint">↩ = jugador que salió por un cambio. Jugador más valioso = bases totales + CA + CI + ½ (BB + HBP + BR) − ½ E − ¼ K.</p></section>
+  <button class="btn" id="edit">Ingresar / corregir datos del juego</button>`;
+  $('#back').onclick = () => { resultOpen=null; render(); };
+  $('#edit').onclick = () => { gameOpen=resultOpen; resultOpen=null; current='juego'; render(); };
+}
+
+/* ---------- CONFIGURACION (último módulo) ---------- */
+let logoFile = null;
+async function viewConfig(){
+  logoFile = null;
+  app.innerHTML = `<section class="card" style="max-width:820px"><h2>Configuración</h2>
+  <form id="fcfg" class="split"><div><label>Nombre del Equipo<input id="cf_eq" required value="${esc(cfg?.nombre_equipo)}"></label>
+  <label>Manager (encargado del sistema de estadísticas)<input id="cf_mg" required value="${esc(cfg?.manager)}"></label>
+  <button class="btn">Guardar configuración</button></div>
+  <div class="photo"><div class="ph" id="cf_ph" style="height:200px">${cfg?.logo_url?`<img src="${esc(cfg.logo_url)}" alt="">`:'<span>Sin imagen</span>'}</div>
+    <label class="btn ghost" style="margin:0">Imagen del equipo<input type="file" id="cf_logo" accept="image/*" hidden></label>
+    <p class="hint" style="text-align:center;margin:0">Se mostrará en los juegos y en las estadísticas.</p></div></form></section>
+  <section class="card" style="max-width:620px"><h3 style="margin-top:0">Conexión</h3><p class="hint" style="margin-top:0">Conectado a: ${esc(url)}</p>
+  ${localStorage.getItem('sb_url')?'<button class="btn ghost sm" id="reset">Cambiar conexión</button>':''}</section>`;
+  $('#fcfg').onsubmit = async e => { e.preventDefault();
+    try {
+      let logo_url = cfg?.logo_url || null;
+      if(logoFile){
+        const ext = (logoFile.name.split('.').pop()||'png').toLowerCase().replace(/[^a-z0-9]/g,'');
+        const path = `equipo/logo_${Date.now()}.${ext}`;
+        const up = await sb.storage.from(BUCKET).upload(path, logoFile, {contentType:logoFile.type});
+        if(up.error) throw up.error;
+        logo_url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      }
+      await q(sb.from('configuracion').upsert({id:1, nombre_equipo:$('#cf_eq').value.trim(), manager:$('#cf_mg').value.trim(), logo_url, updated_at:new Date().toISOString()}));
+      logoFile = null; await loadCfg(); toast('Configuración guardada'); viewConfig();
+    }
+    catch(er){ toast(errMsg(er),true); } };
+  $('#cf_logo').onchange = ev => { logoFile = ev.target.files[0] || null; if(logoFile) $('#cf_ph').innerHTML = `<img src="${URL.createObjectURL(logoFile)}" alt="">`; };
+  if($('#reset')) $('#reset').onclick = () => { localStorage.removeItem('sb_url'); localStorage.removeItem('sb_key'); location.reload(); };
+}
+
+boot();
+</script>
+</body>
+</html>
