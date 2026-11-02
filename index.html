@@ -150,6 +150,7 @@ function calc(s){
 const runs = j => ({n:(j.juego_entradas||[]).reduce((a,e)=>a+e.carreras_nuestras,0), r:(j.juego_entradas||[]).reduce((a,e)=>a+e.carreras_rival,0)});
 const result = j => { if(j.estado!=='finalizado') return null; const {n,r}=runs(j); return n>r?'G':n<r?'P':'E'; };
 const badge = r => r ? `<span class="badge b-${r}">${{G:'Ganado',P:'Perdido',E:'Empate'}[r]}</span>` : `<span class="badge b-x">En juego</span>`;
+const badgeJ = j => j.forfeit ? '<span class="badge b-G">Ganado por Forfeit</span>' : badge(result(j));
 function record(games){
   const o={juegos:0,G:0,P:0,E:0,rf:0,rc:0};
   games.filter(j=>j.estado==='finalizado').forEach(j=>{ const r=result(j), c=runs(j); o.juegos++; o[r]++; o.rf+=c.n; o.rc+=c.r; });
@@ -584,15 +585,22 @@ async function viewJuegoLista(){
     <label style="flex:1;min-width:220px">Juega contra<select id="g_r"></select></label>
     <label style="flex:0 0 180px">Fecha<input id="g_f" type="date" value="${hoy}"></label>
   </div>
-  <h3>Line Up ${cfg?esc(cfg.nombre_equipo):''}</h3><div id="g_lu" class="tw"></div>
+  <label class="pg-c" style="margin:6px 0 4px"><input type="checkbox" id="g_ff"> <b>Forfeit</b> — el equipo rival no se presentó (victoria para nosotros)</label>
+  <div id="g_ffbox" style="display:none"><label style="max-width:260px">Carreras a favor por Forfeit<input id="g_ffr" type="number" min="1" value="7"></label></div>
+  <div id="g_lupart"><h3>Line Up ${cfg?esc(cfg.nombre_equipo):''}</h3><div id="g_lu" class="tw"></div>
   <div class="row" style="margin-top:10px"><button class="btn ghost sm" id="lu_add">+ Agregar bateador</button><button class="btn ghost sm" id="lu_del">− Quitar último</button></div>
-  <h3>Reserva</h3><div id="g_rs"></div>
+  <h3>Reserva</h3><div id="g_rs"></div></div>
   <div style="margin-top:16px"><button class="btn" id="g_save">Registrar juego e ingresar</button></div></section>
   <section class="card"><h2>Juegos registrados (${gm.length})</h2>
   ${gm.length?`<div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th class="l">Torneo</th><th class="l">Juego</th><th>Marcador</th><th>Estado</th><th></th></tr></thead><tbody>
-  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badge(result(j))}</td><td><button class="btn sm" data-open="${j.id}">${can('juegos.anotar')?(j.estado==='finalizado'?'Ver / Editar':'Ingresar'):'Ver'}</button></td></tr>`; }).join('')}</tbody></table></div>`:'<p class="empty">Todavía no hay juegos registrados.</p>'}</section>`;
+  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badgeJ(j)}</td><td><button class="btn sm" data-open="${j.id}">${can('juegos.anotar')?(j.estado==='finalizado'?'Ver / Editar':'Ingresar'):'Ver'}</button></td></tr>`; }).join('')}</tbody></table></div>`:'<p class="empty">Todavía no hay juegos registrados.</p>'}</section>`;
 
   if(!can('juegos.crear')) app.querySelector('section.card').style.display = 'none';
+  $('#g_ff').onchange = () => {
+    const ff = $('#g_ff').checked;
+    $('#g_lupart').style.display = ff ? 'none' : ''; $('#g_ffbox').style.display = ff ? '' : 'none';
+    $('#g_save').textContent = ff ? 'Registrar Forfeit (victoria)' : 'Registrar juego e ingresar';
+  };
   const fillRivals = () => { const tid=+$('#g_t').value; $('#g_r').innerHTML = eqs.filter(e=>e.torneo_id===tid).map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join('') || '<option value="">(sin equipos rivales)</option>'; };
   if(ts.length) $('#g_t').onchange = fillRivals; fillRivals();
 
@@ -629,6 +637,15 @@ async function viewJuegoLista(){
     if(!tid) return toast('Selecciona un torneo',true);
     if(!rid) return toast('Selecciona el equipo rival',true);
     if(!fecha) return toast('Indica la fecha del juego',true);
+    if($('#g_ff').checked){                 // el rival no se presentó: victoria por Forfeit
+      const n = Math.max(1, parseInt($('#g_ffr').value,10) || 7);
+      try {
+        const jf = await q(sb.from('juegos').insert({torneo_id:tid,rival_id:rid,fecha,estado:'finalizado',forfeit:true}).select().single());
+        await q(sb.from('juego_entradas').insert(Array.from({length:7},(_,i)=>({juego_id:jf.id,entrada:i+1,carreras_nuestras:i===0?n:0}))));
+        toast('Forfeit registrado: victoria por ausencia del rival'); render();
+      } catch(er){ toast(errMsg(er),true); }
+      return;
+    }
     if(!tit.length) return toast('Agrega al menos un jugador al line up',true);
     const luRows = [...tit.map((r,i)=>({orden:i+1,jugador_id:+r.j,posicion:r.p||null,rol:'titular'})),
                     ...res.map((id,i)=>({orden:101+i,jugador_id:id,posicion:'RS',rol:'reserva'}))];
@@ -690,7 +707,28 @@ async function viewGame(){
 }
 async function refreshGame(){ G = await loadGame(G.j.id); paintGame(); }
 
+function paintForfeit(){
+  const {j, lu} = G, c = runs(j), nombre = cfg?.nombre_equipo || 'Nuestro equipo', rival = j.rival?.nombre || 'Rival';
+  app.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" id="back">← Volver a juegos</button>
+    <span class="hint" style="margin:0">${esc(j.torneos?.nombre)} · ${fmtDate(j.fecha)}</span> ${badgeJ(j)}</div>
+  <section class="card"><div class="score"><div style="text-align:center">${logo('lg')}<br>${esc(nombre)}<small>Nuestro equipo</small></div><div>${c.n} - ${c.r}</div><div style="text-align:center">${esc(rival)}<small>Rival</small></div></div>
+  <div class="mvp" style="margin:0"><span style="font-size:30px">🏳️</span><div><b>Ganado por Forfeit</b><small>${esc(rival)} no se presentó. Victoria para ${esc(nombre)} por ausencia del equipo rival.</small></div></div></section>
+  <div class="row">${can('juegos.anotar')?'<button class="btn ghost" id="ff_off">Quitar Forfeit</button>':''}${can('juegos.eliminar')?'<button class="btn danger" id="delg">Eliminar juego</button>':''}</div>`;
+  $('#back').onclick = () => { gameOpen=null; render(); };
+  if($('#ff_off')) $('#ff_off').onclick = async () => {
+    if(!confirm('¿Quitar el Forfeit? El juego vuelve a estar en curso con marcador 0 - 0.')) return;
+    try {
+      await q(sb.from('juegos').update({forfeit:false, estado:'en_juego'}).eq('id',j.id));
+      await q(sb.from('juego_entradas').update({carreras_nuestras:0, carreras_rival:0}).eq('juego_id',j.id));
+      const tit = lu.filter(l=>l.rol==='titular');
+      if(tit.length) await q(sb.from('juego_stats').upsert(tit.map(l=>({juego_id:j.id, jugador_id:l.jugador_id})), {onConflict:'juego_id,jugador_id', ignoreDuplicates:true}));
+      toast('Forfeit quitado'); await refreshGame();
+    } catch(er){ toast(errMsg(er),true); }
+  };
+  if($('#delg')) $('#delg').onclick = async () => { if(!confirm('¿Eliminar este juego?')) return; try { await q(sb.from('juegos').delete().eq('id',j.id)); gameOpen=null; toast('Juego eliminado'); render(); } catch(er){ toast(errMsg(er),true); } };
+}
 function paintGame(){
+  if(G.j.forfeit) return paintForfeit();
   const {j, lu, st} = G, c = runs(j), fin = j.estado==='finalizado';
   const nombre = cfg?.nombre_equipo || 'Nuestro equipo', rival = j.rival?.nombre || 'Rival';
   const ent = j.juego_entradas;
@@ -698,7 +736,7 @@ function paintGame(){
   const res = lu.filter(l => l.rol==='reserva');
   const tot = sumStats(st), kt = calc(tot);
   app.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" id="back">← Volver a juegos</button>
-    <span class="hint" style="margin:0">${esc(j.torneos?.nombre)} · ${fmtDate(j.fecha)}</span> ${badge(result(j))}</div>
+    <span class="hint" style="margin:0">${esc(j.torneos?.nombre)} · ${fmtDate(j.fecha)}</span> ${badgeJ(j)}</div>
   <section class="card"><div class="score"><div style="text-align:center">${logo('lg')}<br>${esc(nombre)}<small>Nuestro equipo</small></div><div id="sc">${c.n} - ${c.r}</div><div style="text-align:center">${esc(rival)}<small>Rival</small></div></div>
   <div class="tw"><table class="tbl inn"><thead><tr><th class="l">Equipo</th>${ent.map(e=>`<th>${e.entrada}</th>`).join('')}<th>R</th></tr></thead><tbody>
     <tr><td class="l"><b>${esc(nombre)}</b></td>${ent.map(e=>`<td><input type="number" min="0" value="${e.carreras_nuestras}" data-e="${e.entrada}" data-f="carreras_nuestras"></td>`).join('')}<td><b>${c.n}</b></td></tr>
@@ -722,11 +760,11 @@ function paintGame(){
   <div>${res.length ? res.map(l=>`<span class="chip">#${l.jugadores.numero_camiseta} ${esc(l.jugadores.nombre_apellido)} <button class="btn sm" data-in="${l.jugador_id}" style="padding:2px 9px;color:#fff">Entrar</button><button data-rmres="${l.id}" title="Quitar de la reserva">×</button></span>`).join('') : '<p class="empty" style="padding:0;margin:0">No hay jugadores en la reserva.</p>'}</div>
   <div class="row" style="margin-top:12px"><button class="btn ghost sm" id="add_lu">+ Agregar al line up</button></div>
   <p class="hint">«Cambio» saca a un titular y mete a un jugador de la reserva (u otro jugador registrado) en el mismo turno al bate. El jugador que sale conserva sus estadísticas.</p></section>
-  <div class="row"><button class="btn" id="fin">${fin?'Reabrir juego':'Finalizar juego'}</button><button class="btn danger" id="delg">Eliminar juego</button></div>`;
+  <div class="row"><button class="btn" id="fin">${fin?'Reabrir juego':'Finalizar juego'}</button><button class="btn ghost" id="ff_on">Declarar Forfeit</button><button class="btn danger" id="delg">Eliminar juego</button></div>`;
 
   if(!can('juegos.anotar')){
     app.querySelectorAll('.st button,.inn input,[data-sub],[data-in],[data-rmres],#add_lu,#add_inn').forEach(x=>{ x.disabled = true; });
-    $('#fin').style.display = 'none';
+    $('#fin').style.display = 'none'; $('#ff_on').style.display = 'none';
   }
   if(!can('juegos.eliminar')) $('#delg').style.display = 'none';
   $('#back').onclick = () => { gameOpen=null; render(); };
@@ -741,6 +779,19 @@ function paintGame(){
   app.querySelectorAll('[data-in]').forEach(b=>b.onclick=()=>subModal(null, +b.dataset.in));
   app.querySelectorAll('[data-rmres]').forEach(b=>b.onclick=async()=>{ try { await q(sb.from('juego_lineup').delete().eq('id',+b.dataset.rmres)); await refreshGame(); } catch(er){ toast(errMsg(er),true); } });
   $('#add_lu').onclick = addModal;
+  $('#ff_on').onclick = async () => {
+    if(st.some(s => STATS.some(([k]) => s[k] > 0))) return toast('Este juego ya tiene estadísticas anotadas: no se puede declarar Forfeit', true);
+    const n = parseInt(prompt('Forfeit: el rival no se presentó.\nCarreras a favor para la victoria:', '7'), 10);
+    if(!n || n < 1) return;
+    try {
+      await q(sb.from('juego_stats').delete().eq('juego_id',j.id));
+      await q(sb.from('juego_entradas').update({carreras_nuestras:0, carreras_rival:0}).eq('juego_id',j.id));
+      await q(sb.from('juego_entradas').update({carreras_nuestras:n}).eq('juego_id',j.id).eq('entrada',1));
+      await q(sb.from('juegos').update({forfeit:true, estado:'finalizado'}).eq('id',j.id));
+      toast('Forfeit declarado: victoria por ausencia del rival');
+    } catch(er){ toast(errMsg(er),true); }
+    try { await refreshGame(); } catch(er){ toast(errMsg(er),true); }
+  };
   $('#fin').onclick = async () => { try { await q(sb.from('juegos').update({estado:fin?'en_juego':'finalizado'}).eq('id',j.id)); G.j.estado = fin?'en_juego':'finalizado'; toast(fin?'Juego reabierto':'Juego finalizado'); paintGame(); } catch(er){ toast(errMsg(er),true); } };
   $('#delg').onclick = async () => { if(!confirm('¿Eliminar este juego y todas sus estadísticas?')) return; try { await q(sb.from('juegos').delete().eq('id',j.id)); gameOpen=null; toast('Juego eliminado'); render(); } catch(er){ toast(errMsg(er),true); } };
 }
@@ -834,7 +885,7 @@ async function viewResultados(){
     <div class="kpi"><b>${rec.E}</b><span>Empatados</span></div></div>
   <section class="card"><h2>Resultados de los juegos</h2>
   ${gm.length?`<div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th class="l">Torneo</th><th class="l">Juego</th><th>Marcador</th><th>Resultado</th><th class="l">⭐ Jugador más valioso</th><th></th></tr></thead><tbody>
-  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badge(result(j))}</td><td class="l">${mvpMini(st.filter(s=>s.juego_id===j.id), j.estado==='finalizado')}</td><td><button class="btn ghost sm" data-r="${j.id}">Ver estadísticas</button></td></tr>`; }).join('')}</tbody></table></div>
+  ${gm.map(j=>{ const c=runs(j); return `<tr><td>${fmtDate(j.fecha)}</td><td class="l">${esc(j.torneos?.nombre)}</td><td class="l">${logo('sm')} ${esc(cfg?.nombre_equipo||'Nosotros')} vs ${esc(j.rival?.nombre)}</td><td><b>${c.n} - ${c.r}</b></td><td>${badgeJ(j)}</td><td class="l">${mvpMini(st.filter(s=>s.juego_id===j.id), j.estado==='finalizado')}</td><td><button class="btn ghost sm" data-r="${j.id}">Ver estadísticas</button></td></tr>`; }).join('')}</tbody></table></div>
   <p class="hint">Jugador más valioso = bases totales + carreras anotadas + impulsadas + ½ (BB + HBP + BR) − ½ errores − ¼ ponches.</p>`:'<p class="empty">Aún no hay juegos registrados.</p>'}</section>`;
   app.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ resultOpen=+b.dataset.r; render(); });
 }
@@ -844,7 +895,7 @@ async function viewResultadoDetalle(){
   const tot = sumStats(st);
   const jugando = lu.filter(l => st.some(x=>x.jugador_id===l.jugador_id));
   app.innerHTML = `<div class="row" style="margin-bottom:12px"><button class="btn ghost sm" id="back">← Volver a resultados</button>
-    <span class="hint" style="margin:0">${esc(j.torneos?.nombre)} · ${fmtDate(j.fecha)}</span> ${badge(result(j))}</div>
+    <span class="hint" style="margin:0">${esc(j.torneos?.nombre)} · ${fmtDate(j.fecha)}</span> ${badgeJ(j)}</div>
   <section class="card"><div class="score"><div style="text-align:center">${logo('lg')}<br>${esc(nombre)}</div><div>${c.n} - ${c.r}</div><div style="text-align:center">${esc(rival)}</div></div>
   <div class="tw"><table class="tbl"><thead><tr><th class="l">Equipo</th>${ent.map(e=>`<th>${e.entrada}</th>`).join('')}<th>R</th></tr></thead><tbody>
   <tr><td class="l"><b>${esc(nombre)}</b></td>${ent.map(e=>`<td>${e.carreras_nuestras}</td>`).join('')}<td><b>${c.n}</b></td></tr>
@@ -855,6 +906,11 @@ async function viewResultadoDetalle(){
   <tr class="tot"><td colspan="4" class="l">EQUIPO</td>${statCells(tot)}</tr></tbody></table></div>
   <p class="hint">↩ = jugador que salió por un cambio. Jugador más valioso = bases totales + CA + CI + ½ (BB + HBP + BR) − ½ E − ¼ K.</p></section>
   ${can('juegos.anotar')?'<button class="btn" id="edit">Ingresar / corregir datos del juego</button>':''}`;
+  if(j.forfeit){
+    app.querySelector('.mvp')?.remove();
+    const secs = app.querySelectorAll('section.card');
+    secs[secs.length-1].innerHTML = `<div class="mvp" style="margin:0"><span style="font-size:30px">🏳️</span><div><b>Ganado por Forfeit</b><small>${esc(rival)} no se presentó. Victoria para ${esc(nombre)} por ausencia del equipo rival. No se registran estadísticas de jugadores.</small></div></div>`;
+  }
   $('#back').onclick = () => { resultOpen=null; render(); };
   if($('#edit')) $('#edit').onclick = () => { gameOpen=resultOpen; resultOpen=null; current='juego'; render(); };
 }

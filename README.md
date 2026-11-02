@@ -29,7 +29,7 @@ Los permisos se hacen cumplir en la **base de datos** (Row Level Security), no s
 - **Inicio**: estadísticas acumuladas de todos los jugadores y del equipo, y récord de ganados/perdidos.
 - **Registrar Jugador**: datos, número de camiseta único, foto y ficha técnica con los colores del logo del equipo. Cada jugador tiene un **Status (Activo / Inactivo)**. Incluye el botón **Descargar PDF** con el roster de los jugadores **activos** (logo, manager, título y tabla con nombre, cédula, fecha de nacimiento y edad).
 - **Registrar Torneo**: torneos, equipos participantes y récord por torneo.
-- **Juego**: line up de 12 (ampliable a 15), reserva, cambios durante el juego, carreras por entrada y estadísticas en vivo.
+- **Juego**: line up de 12 (ampliable a 15), reserva, cambios durante el juego, carreras por entrada y estadísticas en vivo. Si el rival no se presenta se registra como **Forfeit**: victoria para el equipo (7-0 por defecto, editable), sin estadísticas de jugadores.
 - **Resultados**: marcador y estadísticas por jugador de cada juego, con el jugador más valioso.
 - **Usuarios y Perfiles**: usuarios, perfiles y permisos.
 - **Configuración** (siempre el último): nombre del equipo, manager e imagen del equipo.

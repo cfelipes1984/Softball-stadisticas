@@ -60,8 +60,11 @@ create table if not exists public.juegos (
   rival_id   bigint not null references public.torneo_equipos(id) on delete restrict,
   fecha      date   not null,
   estado     text   not null default 'en_juego' check (estado in ('en_juego','finalizado')),
+  forfeit    boolean not null default false,   -- true = el rival no se presento (victoria para nuestro equipo)
   created_at timestamptz not null default now()
 );
+-- Si ya habias ejecutado una version anterior del script, esto agrega el Forfeit:
+alter table public.juegos add column if not exists forfeit boolean not null default false;
 
 -- Carreras por entrada de los 2 equipos
 create table if not exists public.juego_entradas (
@@ -139,7 +142,8 @@ select
     when coalesce(sum(e.carreras_nuestras),0) > coalesce(sum(e.carreras_rival),0) then 'G'
     when coalesce(sum(e.carreras_nuestras),0) < coalesce(sum(e.carreras_rival),0) then 'P'
     else 'E'
-  end as resultado
+  end as resultado,
+  j.forfeit
 from public.juegos j
 join public.torneos t          on t.id = j.torneo_id
 join public.torneo_equipos r   on r.id = j.rival_id
