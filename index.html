@@ -100,6 +100,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 .pf summary{cursor:pointer}
 #hPerfil:empty{display:none}
 .ug{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 14px}
+.pchart .bar:hover path{opacity:.8}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;z-index:9}
 #toast.on{opacity:1}#toast.err{background:var(--red)}
 @media(max-width:720px){.split{grid-template-columns:1fr}main{padding:12px}}
@@ -126,7 +127,7 @@ const POSICIONES = ['P','C','1B','2B','3B','SS','SF','LF','CF','RF','4F','BD','B
 const STATS = [['vb','VB','Veces al bate'],['h','H','Hits'],['d2','2B','Dobles'],['d3','3B','Triples'],['hr','HR','Jonrones'],
   ['ca','CA','Carreras anotadas'],['ci','CI','Carreras impulsadas'],['bb','BB','Bases por bolas'],['k','K','Ponches'],
   ['hbp','HBP','Golpeado'],['sf','FS','Fly de sacrificio'],['br','BR','Bases robadas'],['e','E','Errores']];
-const VIEWS = [['inicio','Inicio','inicio.ver'],['jugador','Registrar Jugador','jugadores.ver'],['torneo','Registrar Torneo','torneos.ver'],['juego','Juego','juegos.ver'],['resultados','Resultados','resultados.ver'],['usuarios','Usuarios y Perfiles','usuarios.gestionar'],['config','Configuración','config.ver']];
+const VIEWS = [['inicio','Inicio','inicio.ver'],['jugador','Registrar Jugador','jugadores.ver'],['torneo','Registrar Torneo','torneos.ver'],['juego','Juego','juegos.ver'],['practicas','Prácticas','practicas.ver'],['resultados','Resultados','resultados.ver'],['usuarios','Usuarios y Perfiles','usuarios.gestionar'],['config','Configuración','config.ver']];
 
 const $ = s => document.querySelector(s);
 const app = $('#app');
@@ -249,14 +250,11 @@ const logoJpeg = url => new Promise(res => {
   im.onerror = () => res(null); im.src = url;
 });
 
-async function descargarRoster(jugadores){
+async function generarPDF({titulo, info=[], cols, rows, total, archivo}){
   const pal = await (TEAMP || PAL_DEFAULT);
   const head = hslToRgb01(pal.c2, [.11,.37,.24]), dark = hslToRgb01(pal.c1, [.08,.2,.2]);
   const logo = await logoJpeg(cfg?.logo_url);
   const W = 612, H = 792, M = 40, HR = 26, RH = 24, LIM = H - 56;
-  const cols = [{t:'Nombre y Apellido',w:236,a:'l'},{t:'Cédula',w:110,a:'c'},{t:'Fecha de Nacimiento',w:130,a:'c'},{t:'Edad',w:56,a:'c'}];
-  const rows = [...jugadores].sort((a,b)=>a.nombre_apellido.localeCompare(b.nombre_apellido,'es'))
-    .map(p => [p.nombre_apellido, p.cedula, fmtDate(p.fecha_nacimiento), String(edad(p.fecha_nacimiento))]);
   const gris = [.25,.25,.25], borde = [.78,.82,.78];
   const pages = []; let ops, y;
   const col = c => c.map(v=>v.toFixed(3)).join(' ');
@@ -280,8 +278,10 @@ async function descargarRoster(jugadores){
     ops.push(`q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${((W-w)/2).toFixed(2)} ${(H-y-h).toFixed(2)} cm /Im1 Do Q`); y += h + 16;
   } else { text(cfg?.nombre_equipo || '', W/2, y+20, 22, true, dark, 'c'); y += 40; }
   text('Manager: ' + (cfg?.manager || ''), W/2, y+12, 13, false, gris, 'c'); y += 32;
-  text('ROSTER DE JUGADORES', W/2, y+18, 20, true, dark, 'c'); y += 28;
+  text(titulo, W/2, y+18, 20, true, dark, 'c'); y += 28;
   rect(W/2-70, y, 140, 3, head); y += 20;
+  info.forEach(([k,v]) => { const s = fitText(k + ': ' + v, W-2*M, 11.5, false); text(s, W/2, y+12, 11.5, false, gris, 'c'); y += 18; });
+  if(info.length) y += 6;
 
   drawHeader();
   rows.forEach((r,i) => {
@@ -290,14 +290,14 @@ async function descargarRoster(jugadores){
     let x = x0;
     cols.forEach((c,k) => {
       const s = fitText(r[k], c.w - 16, 10.5, false);
-      text(s, c.a==='l' ? x+8 : x+c.w/2, y+16, 10.5, false, [.1,.1,.1], c.a==='l' ? 'l' : 'c'); x += c.w;
+      text(s, c.a==='l' ? x+8 : c.a==='r' ? x+c.w-8 : x+c.w/2, y+16, 10.5, false, [.1,.1,.1], c.a==='l' ? 'l' : c.a==='r' ? 'r' : 'c'); x += c.w;
     });
     line(x0, y+RH, x0+tableW, y+RH, borde);
     let vx = x0; for(let k=0;k<=cols.length;k++){ line(vx, y, vx, y+RH, borde); vx += cols[k]?.w || 0; }
     y += RH;
   });
   if(y + 30 > LIM + 20) newPage();
-  text('Total de jugadores: ' + rows.length, x0, y+22, 11, true, dark, 'l');
+  text(total, x0, y+22, 11, true, dark, 'l');
 
   const d = new Date(), fecha = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
   pages.forEach((p,i) => { ops = p;
@@ -323,14 +323,31 @@ async function descargarRoster(jugadores){
     obj(6+2*i, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${logo?' /XObject << /Im1 5 0 R >>':''} >> /Contents ${7+2*i} 0 R >>`);
     obj(7+2*i, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
   });
-  const total = 5 + 2*N, xpos = pos; let xr = `xref\n0 ${total+1}\n0000000000 65535 f \n`;
-  for(let n=1;n<=total;n++) xr += String(offs[n]).padStart(10,'0') + ' 00000 n \n';
-  put(xr + `trailer\n<< /Size ${total+1} /Root 1 0 R >>\nstartxref\n${xpos}\n%%EOF`);
+  const nobj = 5 + 2*N, xpos = pos; let xr = `xref\n0 ${nobj+1}\n0000000000 65535 f \n`;
+  for(let n=1;n<=nobj;n++) xr += String(offs[n]).padStart(10,'0') + ' 00000 n \n';
+  put(xr + `trailer\n<< /Size ${nobj+1} /Root 1 0 R >>\nstartxref\n${xpos}\n%%EOF`);
 
-  const nombre = 'Roster_' + (cfg?.nombre_equipo || 'Jugadores').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'') + '.pdf';
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, {type:'application/pdf'})); a.download = nombre;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, {type:'application/pdf'})); a.download = archivo;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
+
+const slug = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+async function descargarRoster(jugadores){
+  const rows = [...jugadores].sort((a,b)=>a.nombre_apellido.localeCompare(b.nombre_apellido,'es'))
+    .map(p => [p.nombre_apellido, p.cedula, fmtDate(p.fecha_nacimiento), String(edad(p.fecha_nacimiento))]);
+  return generarPDF({titulo:'ROSTER DE JUGADORES',
+    cols:[{t:'Nombre y Apellido',w:236,a:'l'},{t:'Cédula',w:110,a:'c'},{t:'Fecha de Nacimiento',w:130,a:'c'},{t:'Edad',w:56,a:'c'}],
+    rows, total:'Total de jugadores: ' + rows.length, archivo:'Roster_' + (slug(cfg?.nombre_equipo) || 'Jugadores') + '.pdf'});
+}
+async function descargarPractica(pr, jugadores){
+  const rows = [...jugadores].sort((a,b)=>a.numero_camiseta-b.numero_camiseta)
+    .map((p,i) => [String(i+1), String(p.numero_camiseta), p.nombre_apellido, p.cedula]);
+  return generarPDF({titulo:'REPORTE DE PRÁCTICA',
+    info:[['Fecha', fmtDate(pr.fecha)], ['Lugar', pr.lugar || '—'], ['Monto', money(pr.monto)], ['N.º de referencia del pago', pr.referencia || '—']],
+    cols:[{t:'N.º',w:40,a:'c'},{t:'Camiseta',w:80,a:'c'},{t:'Nombre y Apellido',w:290,a:'l'},{t:'Cédula',w:122,a:'c'}],
+    rows, total:'Total de asistentes: ' + rows.length, archivo:'Practica_' + pr.fecha + '.pdf'});
+}
+
 
 /* ---------- Arranque ---------- */
 let sb = null, cfg = null, current = 'inicio', gameOpen = null, resultOpen = null;
@@ -416,7 +433,7 @@ async function loadCfg(){
   TEAMP = teamPalette(cfg?.logo_url);
   try { localStorage.setItem('sb_team', cfg?.nombre_equipo||''); localStorage.setItem('sb_logo', cfg?.logo_url||''); } catch(e){}
 }
-function go(v){ current=v; gameOpen=null; resultOpen=null; render(); }
+function go(v){ current=v; gameOpen=null; resultOpen=null; practOpen=null; practEdit=null; render(); }
 async function render(){
   const vv = VIEWS.filter(v => can(v[2]));
   if(vv.length && !vv.some(v => v[0]===current)) current = vv[0][0];
@@ -424,7 +441,7 @@ async function render(){
   $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.v));
   app.innerHTML = '<p class="empty">Cargando…</p>';
   try {
-    await ({inicio:viewInicio, jugador:viewJugador, torneo:viewTorneo, juego:viewJuego, resultados:viewResultados, usuarios:viewUsuarios, config:viewConfig})[current]();
+    await ({inicio:viewInicio, jugador:viewJugador, torneo:viewTorneo, juego:viewJuego, practicas:viewPracticas, resultados:viewResultados, usuarios:viewUsuarios, config:viewConfig})[current]();
   } catch(e){ console.error(e); app.innerHTML = `<div class="warn">Error: ${esc(errMsg(e))}</div>`; }
 }
 
@@ -915,12 +932,148 @@ async function viewResultadoDetalle(){
   if($('#edit')) $('#edit').onclick = () => { gameOpen=resultOpen; resultOpen=null; current='juego'; render(); };
 }
 
+/* ---------- PRÁCTICAS ---------- */
+const money = n => Number(n||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
+let practOpen = null, practEdit = null;
+const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+
+// Gráfica de barras: jugadores que asistieron a cada práctica (orden cronológico, últimas 20)
+function chartAsistencia(list, hiId){
+  const d = [...list].sort((a,b)=>a.fecha.localeCompare(b.fecha) || a.id-b.id).slice(-20);
+  if(!d.length) return '';
+  const W = 720, H = 270, L = 38, R = 12, T = 14, B = 34, pw = W-L-R, ph = H-T-B;
+  const mx = Math.max(1, ...d.map(x=>x.asistentes)), step = mx<=5 ? 1 : Math.ceil(mx/5), top = Math.ceil(mx/step)*step;
+  const slot = pw/d.length, bw = Math.min(40, slot*0.62), y = v => T + ph - (v/top)*ph;
+  let g = '';
+  for(let v=0; v<=top; v+=step) g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="#e3e8e1" stroke-width="1"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#667085">${v}</text>`;
+  const bars = d.map((x,i) => {
+    const cx = L + slot*i + slot/2, bx = cx-bw/2, by = y(x.asistentes), bh = T+ph-by, r = Math.min(4, bw/2, bh);
+    const fill = hiId==null ? '#2e7d4f' : (x.id===hiId ? '#1b5e3b' : '#9cc5ad');
+    const f = fmtDate(x.fecha).slice(0,5);
+    const path = bh>0 ? `M${bx},${T+ph} V${by+r} Q${bx},${by} ${bx+r},${by} H${bx+bw-r} Q${bx+bw},${by} ${bx+bw},${by+r} V${T+ph} Z` : '';
+    return `<g class="bar"><title>${fmtDate(x.fecha)}: ${x.asistentes} jugador${x.asistentes===1?'':'es'}</title>
+      <rect x="${cx-slot/2}" y="${T}" width="${slot}" height="${ph+B-6}" fill="transparent"/>
+      <path d="${path}" fill="${fill}"/>
+      ${x.asistentes>0 && (hiId==null ? d.length<=10 : x.id===hiId) ? `<text x="${cx}" y="${by-5}" text-anchor="middle" font-size="12" font-weight="700" fill="#14213d">${x.asistentes}</text>` : ''}
+      <text x="${cx}" y="${H-12}" text-anchor="middle" font-size="11" fill="#667085">${f}</text></g>`;
+  }).join('');
+  return `<div class="tw pc-scroll"><svg class="pchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Jugadores por práctica" style="width:100%;min-width:600px;height:auto;display:block">
+    ${g}<line x1="${L}" x2="${W-R}" y1="${T+ph}" y2="${T+ph}" stroke="#b9c2b6" stroke-width="1"/>${bars}</svg></div>
+    <p class="hint">Jugadores que asistieron a cada práctica${list.length>20?' (últimas 20)':''}. Pasa el cursor sobre una barra para ver el detalle.</p>`;
+}
+
+async function viewPracticas(){
+  const [prs, js] = await Promise.all([
+    q(sb.from('v_practicas_resumen').select('*').order('fecha',{ascending:false}).order('id',{ascending:false})),
+    q(sb.from('jugadores').select('*').order('numero_camiseta'))
+  ]);
+  if(practOpen){
+    const pr = prs.find(x=>x.id===practOpen);
+    if(!pr){ practOpen = null; return viewPracticas(); }
+    const ids = (await q(sb.from('practica_asistentes').select('jugador_id').eq('practica_id',pr.id))).map(a=>a.jugador_id);
+    const pl = js.filter(p=>ids.includes(p.correlativo));
+    app.innerHTML = `<section class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px"><div class="row" style="gap:12px">${logo('lg')}<div><h2 style="margin:0">Reporte de práctica</h2><div class="hint" style="margin:2px 0 0">${esc(cfg?.nombre_equipo||'')}${cfg?.manager?' · Manager: '+esc(cfg.manager):''}</div></div></div>
+        <div class="row"><button class="btn ghost" id="pr_back">← Volver</button>${can('practicas.editar')?'<button class="btn ghost" id="pr_edit">Editar</button>':''}<button class="btn" id="pr_pdf">📄 Descargar PDF</button></div></div>
+      <div class="cards">
+        <div class="kpi"><b>${fmtDate(pr.fecha)}</b><span>Fecha${pr.lugar?' · '+esc(pr.lugar):''}</span></div>
+        <div class="kpi"><b>${pr.asistentes}</b><span>Jugadores asistentes</span></div>
+        <div class="kpi"><b>${money(pr.monto)}</b><span>Monto de la práctica</span></div>
+        <div class="kpi"><b>${money(pr.costo_por_jugador)}</b><span>Costo por jugador</span></div>
+        <div class="kpi"><b>${esc(pr.referencia||'—')}</b><span>N.º de referencia del pago</span></div></div></section>
+      <section class="card"><h2>Jugadores por práctica</h2>${chartAsistencia(prs, pr.id)}</section>
+      <section class="card"><h2>Asistentes (${pl.length})</h2><div class="tw"><table class="tbl"><thead><tr><th>N.º</th><th>Camiseta</th><th class="l">Nombre y Apellido</th><th>Cédula</th></tr></thead><tbody>
+      ${pl.map((p,i)=>`<tr><td>${i+1}</td><td><b>${p.numero_camiseta}</b></td><td class="l">${esc(p.nombre_apellido)}</td><td>${esc(p.cedula)}</td></tr>`).join('')}</tbody></table></div></section>`;
+    app.querySelectorAll('.pc-scroll').forEach(x => { x.scrollLeft = x.scrollWidth; });
+    $('#pr_back').onclick = () => { practOpen = null; render(); };
+    if($('#pr_edit')) $('#pr_edit').onclick = () => { practEdit = {...pr, ids}; practOpen = null; render(); window.scrollTo(0,0); };
+    $('#pr_pdf').onclick = async () => {
+      const b = $('#pr_pdf'); b.disabled = true;
+      try { await descargarPractica(pr, pl); toast('PDF descargado'); } catch(er){ console.error(er); toast('No se pudo crear el PDF: ' + errMsg(er), true); }
+      b.disabled = false;
+    };
+    return;
+  }
+
+  const e = practEdit, sel = new Set(e ? e.ids : []);
+  const lista = js.filter(p => p.activo !== false || sel.has(p.correlativo));
+  const tot = prs.reduce((a,x)=>a+Number(x.monto),0), prom = prs.length ? prs.reduce((a,x)=>a+x.asistentes,0)/prs.length : 0;
+  app.innerHTML = `<section class="card"><h2>${e?'Editar práctica':'Registrar Práctica'}</h2>
+    <form id="fp">
+      <div class="ug">
+        <label>Fecha<input id="p_fecha" type="date" required value="${esc(e?.fecha || hoy())}"></label>
+        <label>Lugar (opcional)<input id="p_lugar" value="${esc(e?.lugar)}" placeholder="Ej. Estadio / Campo"></label>
+        <label>Monto del costo de la práctica<input id="p_monto" type="number" min="0" step="0.01" required value="${e ? e.monto : ''}" placeholder="0.00"></label>
+        <label>Número de referencia del pago<input id="p_ref" value="${esc(e?.referencia)}" placeholder="Ej. 00123456"></label>
+      </div>
+      <div class="row" style="justify-content:space-between;margin:10px 0 6px"><b>Jugadores que asistieron (<span id="p_cnt">0</span> de ${lista.length})</b>
+        <span class="row"><button type="button" class="btn ghost sm" id="p_all">Todos</button><button type="button" class="btn ghost sm" id="p_none">Ninguno</button></span></div>
+      ${lista.length ? `<div class="ug" id="p_list">${lista.map(p=>`<label class="pg-c" style="margin:0"><input type="checkbox" data-pj="${p.correlativo}" ${sel.has(p.correlativo)?'checked':''}> <b>${p.numero_camiseta}</b> ${esc(p.nombre_apellido)}${p.activo===false?' <span class="badge b-x">Inactivo</span>':''}</label>`).join('')}</div>`
+        : '<p class="empty">Primero registra jugadores en el módulo Registrar Jugador.</p>'}
+      <div class="row" style="margin-top:12px"><button class="btn">${e?'Guardar cambios':'Registrar práctica'}</button>${e?'<button type="button" class="btn ghost" id="p_cancel">Cancelar</button>':''}</div>
+    </form></section>
+    ${prs.length?`<section class="card"><h2>Asistencia por práctica</h2>
+      <div class="cards"><div class="kpi"><b>${prs.length}</b><span>Prácticas</span></div><div class="kpi"><b>${prom.toLocaleString('es-VE',{maximumFractionDigits:1})}</b><span>Asistencia promedio</span></div><div class="kpi"><b>${money(tot)}</b><span>Monto total</span></div></div>
+      ${chartAsistencia(prs, null)}</section>`:''}
+    <section class="card"><h2>Prácticas registradas (${prs.length})</h2>
+    ${prs.length?`<div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th class="l">Lugar</th><th>Asistentes</th><th>Monto</th><th>Costo por jugador</th><th>N.º referencia</th><th></th></tr></thead><tbody>
+    ${prs.map(x=>`<tr><td>${fmtDate(x.fecha)}</td><td class="l">${esc(x.lugar||'')}</td><td><b>${x.asistentes}</b></td><td>${money(x.monto)}</td><td>${money(x.costo_por_jugador)}</td><td>${esc(x.referencia||'')}</td>
+      <td><button class="btn sm" data-rep="${x.id}">Reporte</button> ${can('practicas.editar')?`<button class="btn ghost sm" data-ped="${x.id}">Editar</button>`:''} ${can('practicas.eliminar')?`<button class="btn danger sm" data-pdel="${x.id}">Eliminar</button>`:''}</td></tr>`).join('')}
+    <tr class="tot"><td class="l" colspan="3"><b>Total</b></td><td><b>${money(tot)}</b></td><td colspan="3"></td></tr></tbody></table></div>`:'<p class="empty">Aún no hay prácticas registradas.</p>'}</section>`;
+
+  app.querySelectorAll('.pc-scroll').forEach(x => { x.scrollLeft = x.scrollWidth; });
+  const cnt = () => { $('#p_cnt').textContent = app.querySelectorAll('[data-pj]:checked').length; };
+  const boxes = () => app.querySelectorAll('[data-pj]');
+  if(!(e ? can('practicas.editar') : can('practicas.crear'))) $('#fp').closest('section').style.display = 'none';
+  boxes().forEach(b => b.onchange = cnt); cnt();
+  $('#p_all').onclick = () => { boxes().forEach(b => b.checked = true); cnt(); };
+  $('#p_none').onclick = () => { boxes().forEach(b => b.checked = false); cnt(); };
+  if($('#p_cancel')) $('#p_cancel').onclick = () => { practEdit = null; render(); };
+  app.querySelectorAll('[data-rep]').forEach(b => b.onclick = () => { practOpen = +b.dataset.rep; practEdit = null; render(); window.scrollTo(0,0); });
+  app.querySelectorAll('[data-ped]').forEach(b => b.onclick = async () => {
+    try {
+      const x = prs.find(z => z.id === +b.dataset.ped);
+      const ids = (await q(sb.from('practica_asistentes').select('jugador_id').eq('practica_id',x.id))).map(a=>a.jugador_id);
+      practEdit = {...x, ids}; render(); window.scrollTo(0,0);
+    } catch(er){ toast(errMsg(er), true); }
+  });
+  app.querySelectorAll('[data-pdel]').forEach(b => b.onclick = async () => {
+    if(!confirm('¿Eliminar esta práctica y su lista de asistentes?')) return;
+    try { await q(sb.from('practicas').delete().eq('id',b.dataset.pdel)); toast('Práctica eliminada'); render(); } catch(er){ toast(errMsg(er), true); }
+  });
+  $('#fp').onsubmit = async ev => {
+    ev.preventDefault();
+    const now = [...app.querySelectorAll('[data-pj]:checked')].map(c => +c.dataset.pj);
+    if(!now.length) return toast('Marca al menos un jugador que asistió a la práctica', true);
+    const monto = parseFloat($('#p_monto').value);
+    if(!(monto >= 0)) return toast('Escribe un monto válido (0 o más)', true);
+    const rec = {fecha:$('#p_fecha').value, lugar:$('#p_lugar').value.trim() || null, monto, referencia:$('#p_ref').value.trim() || null};
+    try {
+      if(practEdit){
+        const id = practEdit.id, antes = practEdit.ids;
+        await q(sb.from('practicas').update(rec).eq('id',id));
+        const quitar = antes.filter(i => !now.includes(i)), nuevos = now.filter(i => !antes.includes(i));
+        if(quitar.length) await q(sb.from('practica_asistentes').delete().eq('practica_id',id).in('jugador_id',quitar));
+        if(nuevos.length) await q(sb.from('practica_asistentes').insert(nuevos.map(j => ({practica_id:id, jugador_id:j}))));
+        toast('Práctica actualizada'); practEdit = null;
+      } else {
+        const nueva = await q(sb.from('practicas').insert(rec).select().single());
+        try { await q(sb.from('practica_asistentes').insert(now.map(j => ({practica_id:nueva.id, jugador_id:j})))); }
+        catch(er2){ await sb.from('practicas').delete().eq('id',nueva.id); throw er2; }
+        toast('Práctica registrada');
+      }
+      render();
+    } catch(er){ toast(errMsg(er), true); }
+  };
+}
+
 /* ---------- USUARIOS Y PERFILES ---------- */
 const PERMS = [
   ['inicio','Inicio',[['ver','Ver']]],
   ['jugadores','Jugadores',[['ver','Ver'],['crear','Registrar'],['editar','Editar'],['eliminar','Eliminar']]],
   ['torneos','Torneos',[['ver','Ver'],['crear','Registrar']]],
   ['juegos','Juegos',[['ver','Ver'],['crear','Registrar juego'],['anotar','Anotar estadísticas y cambios'],['eliminar','Eliminar']]],
+  ['practicas','Prácticas',[['ver','Ver'],['crear','Registrar'],['editar','Editar'],['eliminar','Eliminar']]],
   ['resultados','Resultados',[['ver','Ver']]],
   ['config','Configuración',[['ver','Ver'],['editar','Modificar']]],
   ['usuarios','Usuarios y perfiles',[['gestionar','Administrar']]]

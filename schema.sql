@@ -194,12 +194,42 @@ values ('fotos-jugadores', 'fotos-jugadores', true)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------
+-- 6b. PRACTICAS (asistencia, costo y referencia del pago)
+-- ---------------------------------------------------------------------
+create table if not exists public.practicas (
+  id         bigint generated always as identity primary key,
+  fecha      date    not null,
+  lugar      text,
+  monto      numeric(12,2) not null default 0 check (monto >= 0),
+  referencia text,
+  notas      text,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_practicas_fecha on public.practicas (fecha);
+
+create table if not exists public.practica_asistentes (
+  practica_id bigint not null references public.practicas(id) on delete cascade,
+  jugador_id  bigint not null references public.jugadores(correlativo) on delete restrict,
+  primary key (practica_id, jugador_id)
+);
+create index if not exists idx_practica_asist_jugador on public.practica_asistentes (jugador_id);
+
+create or replace view public.v_practicas_resumen with (security_invoker = true) as
+select p.id, p.fecha, p.lugar, p.monto, p.referencia,
+       count(a.jugador_id)::int as asistentes,
+       case when count(a.jugador_id) > 0 then round(p.monto / count(a.jugador_id), 2) else 0 end as costo_por_jugador
+from public.practicas p
+left join public.practica_asistentes a on a.practica_id = p.id
+group by p.id;
+
+-- ---------------------------------------------------------------------
 -- 7. PERFILES, USUARIOS Y PERMISOS
 --    Permisos disponibles (texto "modulo.accion"):
 --      inicio.ver
 --      jugadores.ver | crear | editar | eliminar
 --      torneos.ver   | crear
 --      juegos.ver    | crear (registrar juego) | anotar (estadisticas y cambios) | eliminar
+--      practicas.ver | crear | editar | eliminar
 --      resultados.ver
 --      config.ver    | editar
 --      usuarios.gestionar (crear usuarios y editar perfiles)
@@ -228,15 +258,17 @@ insert into public.perfiles (nombre, descripcion, permisos, es_sistema) values
  ('Administrador', 'Acceso total, incluye usuarios y perfiles',
    array['inicio.ver','jugadores.ver','jugadores.crear','jugadores.editar','jugadores.eliminar',
          'torneos.ver','torneos.crear','juegos.ver','juegos.crear','juegos.anotar','juegos.eliminar',
+         'practicas.ver','practicas.crear','practicas.editar','practicas.eliminar',
          'resultados.ver','config.ver','config.editar','usuarios.gestionar'], true),
  ('Manager', 'Maneja todo el equipo, sin administrar usuarios',
    array['inicio.ver','jugadores.ver','jugadores.crear','jugadores.editar','jugadores.eliminar',
          'torneos.ver','torneos.crear','juegos.ver','juegos.crear','juegos.anotar','juegos.eliminar',
+         'practicas.ver','practicas.crear','practicas.editar','practicas.eliminar',
          'resultados.ver','config.ver','config.editar'], false),
  ('Anotador', 'Registra juegos y anota las estadisticas',
-   array['inicio.ver','jugadores.ver','torneos.ver','juegos.ver','juegos.crear','juegos.anotar','resultados.ver'], false),
+   array['inicio.ver','jugadores.ver','torneos.ver','juegos.ver','juegos.crear','juegos.anotar','practicas.ver','practicas.crear','practicas.editar','resultados.ver'], false),
  ('Consulta', 'Solo puede ver la informacion',
-   array['inicio.ver','jugadores.ver','torneos.ver','juegos.ver','resultados.ver'], false),
+   array['inicio.ver','jugadores.ver','torneos.ver','juegos.ver','practicas.ver','resultados.ver'], false),
  ('Sin acceso', 'Cuenta nueva pendiente de aprobacion: no ve nada', '{}', true)
 on conflict (nombre) do nothing;
 
@@ -244,8 +276,17 @@ on conflict (nombre) do nothing;
 update public.perfiles set es_sistema = true,
   permisos = array['inicio.ver','jugadores.ver','jugadores.crear','jugadores.editar','jugadores.eliminar',
                    'torneos.ver','torneos.crear','juegos.ver','juegos.crear','juegos.anotar','juegos.eliminar',
+                   'practicas.ver','practicas.crear','practicas.editar','practicas.eliminar',
                    'resultados.ver','config.ver','config.editar','usuarios.gestionar']
 where nombre = 'Administrador';
+
+-- Bases ya instaladas: agrega los permisos de Practicas a los perfiles que ya existian (una sola vez)
+update public.perfiles set permisos = permisos || array['practicas.ver','practicas.crear','practicas.editar','practicas.eliminar']
+where nombre = 'Manager' and not exists (select 1 from unnest(permisos) x where x like 'practicas.%');
+update public.perfiles set permisos = permisos || array['practicas.ver','practicas.crear','practicas.editar']
+where nombre = 'Anotador' and not exists (select 1 from unnest(permisos) x where x like 'practicas.%');
+update public.perfiles set permisos = permisos || array['practicas.ver']
+where nombre = 'Consulta' and not exists (select 1 from unnest(permisos) x where x like 'practicas.%');
 
 -- Funciones que usan las politicas de seguridad
 create or replace function public.tiene_permiso(p text) returns boolean
@@ -371,7 +412,7 @@ do $$
 declare t text;
 begin
   foreach t in array array['configuracion','jugadores','torneos','torneo_equipos',
-                           'juegos','juego_entradas','juego_lineup','juego_stats']
+                           'juegos','juego_entradas','juego_lineup','juego_stats','practicas','practica_asistentes']
   loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "acceso_total_%s" on public.%I', t, t);
@@ -393,7 +434,9 @@ begin
     ('juegos','delete','juegos.eliminar'),
     ('juego_entradas','update','juegos.anotar'),  ('juego_entradas','delete','juegos.anotar'),
     ('juego_lineup','update','juegos.anotar'),    ('juego_lineup','delete','juegos.anotar'),
-    ('juego_stats','update','juegos.anotar'),     ('juego_stats','delete','juegos.anotar')
+    ('juego_stats','update','juegos.anotar'),     ('juego_stats','delete','juegos.anotar'),
+    ('practicas','insert','practicas.crear'),     ('practicas','update','practicas.editar'),
+    ('practicas','delete','practicas.eliminar'),  ('practica_asistentes','delete','practicas.editar')
   ) as v(tabla, cmd, perm)
   loop
     execute format('drop policy if exists "perm_%s_%s" on public.%I', r.tabla, r.cmd, r.tabla);
@@ -421,6 +464,11 @@ begin
                    t, t, 'juegos.crear', 'juegos.anotar');
   end loop;
 end $$;
+
+-- Asistentes de practica: se agregan al crear o al editar la practica
+drop policy if exists "perm_practica_asistentes_insert" on public.practica_asistentes;
+create policy "perm_practica_asistentes_insert" on public.practica_asistentes for insert to authenticated
+  with check (public.tiene_permiso('practicas.crear') or public.tiene_permiso('practicas.editar'));
 
 -- Pantalla de login: permite leer SOLO el nombre del equipo y su logo sin haber
 -- iniciado sesion (el manager y demas datos siguen protegidos).
